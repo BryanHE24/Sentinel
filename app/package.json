@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "npm --prefix frontend run build",
+    "build": "npm --prefix frontend ci --include=dev && npm --prefix frontend run build",
     "start": "node backend/server.js"
   },
   "dependencies": {
