@@ -18,3 +18,11 @@
 
 - Application deployment, connectivity, profiling, and ingestion
   have not yet been verified.
+
+### Local application skeleton
+
+- Created a React and TypeScript frontend with Vite.
+- Created a Node.js and Express backend.
+- Configured the backend to serve the compiled frontend.
+- Verified that the frontend can call /api/health locally.
+- SQL, AI, and Databricks deployment remain unverified.
