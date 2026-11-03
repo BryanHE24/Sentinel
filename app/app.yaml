@@ -6,3 +6,6 @@ env:
 
   - name: SENTINEL_AI_MODEL
     value: system.ai.gpt-oss-120b
+
+  - name: SENTINEL_AI_MODEL
+    value: system.ai.gpt-oss-120b
