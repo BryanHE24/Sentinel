@@ -39,6 +39,8 @@ app.get("/api/health/sql", async (_request, response) => {
 
     response.status(503).json({
       status: "unavailable",
+      errorType: error.name,
+      errorCode: String(error.code ?? "UNKNOWN"),
       message: isConfigurationError
         ? error.message
         : "Configuration is present, but SQL authentication or query execution failed."

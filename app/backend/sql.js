@@ -34,7 +34,11 @@ export async function checkSqlConnection() {
 
   try {
     await client.connect({
-      host: new URL(DATABRICKS_HOST).hostname,
+      host: new URL(
+        DATABRICKS_HOST.startsWith("https://")
+          ? DATABRICKS_HOST
+          : `https://${DATABRICKS_HOST}`
+      ).hostname,
       path: `/sql/1.0/warehouses/${DATABRICKS_WAREHOUSE_ID}`,
       authType: "databricks-oauth",
       oauthClientId: DATABRICKS_CLIENT_ID,
