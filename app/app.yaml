@@ -3,3 +3,6 @@ command: ["npm", "start"]
 env:
   - name: DATABRICKS_WAREHOUSE_ID
     valueFrom: sql-warehouse
+
+  - name: SENTINEL_AI_MODEL
+    value: system.ai.gpt-oss-120b

@@ -2,6 +2,7 @@ import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { checkAiConnection } from "./ai.js";
 import { checkSqlConnection } from "./sql.js";
 
 const app = express();
@@ -48,6 +49,26 @@ app.get("/api/health/sql", async (_request, response) => {
   }
 });
 
+
+app.post("/api/checks/ai", async (_request, response) => {
+  response.set("Cache-Control", "no-store");
+
+  try {
+    const result = await checkAiConnection();
+
+    response.json({
+      status: "ok",
+      ...result
+    });
+  } catch (error) {
+    console.error("AI connectivity check failed:", error.message);
+
+    response.status(503).json({
+      status: "unavailable",
+      message: error.message
+    });
+  }
+});
 
 // Serve the compiled React application.
 app.use(express.static(frontendDirectory));
