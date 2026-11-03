@@ -14,7 +14,18 @@ export async function checkSqlConnection() {
     !DATABRICKS_CLIENT_ID ||
     !DATABRICKS_CLIENT_SECRET
   ) {
-    throw new Error("Missing Databricks SQL configuration");
+    const required = {
+      DATABRICKS_HOST,
+      DATABRICKS_WAREHOUSE_ID,
+      DATABRICKS_CLIENT_ID,
+      DATABRICKS_CLIENT_SECRET
+    };
+
+    const missing = Object.entries(required)
+      .filter(([, value]) => !value)
+      .map(([name]) => name);
+
+    throw new Error(`Missing configuration: ${missing.join(", ")}`);
   }
 
   const client = new DBSQLClient();

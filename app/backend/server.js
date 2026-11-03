@@ -34,9 +34,14 @@ app.get("/api/health/sql", async (_request, response) => {
   } catch (error) {
     console.error("SQL connectivity check failed:", error.message);
 
+    const isConfigurationError =
+      error.message.startsWith("Missing configuration:");
+
     response.status(503).json({
       status: "unavailable",
-      message: "SQL connectivity check failed. Check the app logs."
+      message: isConfigurationError
+        ? error.message
+        : "Configuration is present, but SQL authentication or query execution failed."
     });
   }
 });
