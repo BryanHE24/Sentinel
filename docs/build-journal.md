@@ -26,3 +26,11 @@
 - Configured the backend to serve the compiled frontend.
 - Verified that the frontend can call /api/health locally.
 - SQL, AI, and Databricks deployment remain unverified.
+
+### SQL connectivity verified
+
+- Added the SQL warehouse as an app resource with Can use permission.
+- Connected using the app service principal and OAuth.
+- Normalized the workspace host to support values with or without https://.
+- Verified /api/health/sql returns status: ok and connectionCheck: 1.
+- Table access remains to be verified after creating Sentinel datasets.
