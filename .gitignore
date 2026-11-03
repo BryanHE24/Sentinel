@@ -1,0 +1,21 @@
+# Dependencies and build output
+node_modules/
+dist/
+coverage/
+
+# Credentials and local configuration
+.env
+.env.*
+!.env.example
+.databrickscfg
+.databricks/
+
+# Local datasets
+data/
+*.csv
+*.parquet
+*.zip
+
+# Python
+__pycache__/
+.venv/
