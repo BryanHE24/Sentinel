@@ -16,10 +16,7 @@ An alert does not automatically establish fraud or block a transaction.
 
 ## Current Objective
 
-Persist curated Silver accepted transactions (`workspace.sentinel_silver.transactions`)
-and non-accepted quarantine records (`workspace.sentinel_silver.quarantine`),
-then verify saved schemas, counts, key uniqueness, multiplicity-preserving
-content equality, and rerun idempotency in Databricks.
+Verify Silver persistence (`pipelines/02_silver_transactions.ipynb`) and point-in-time historical feature calculation (`pipelines/03_historical_features.ipynb`) in Databricks.
 
 ## Development Workflow
 
@@ -56,6 +53,7 @@ explain → implement → run → inspect → document → commit.
 - scripts/03_release_replay.ipynb
 - pipelines/01_bronze_transactions.ipynb
 - pipelines/02_silver_transactions.ipynb
+- pipelines/03_historical_features.ipynb
 
 The assessment filename above reflects the existing repository spelling.
 
@@ -79,22 +77,19 @@ The assessment filename above reflects the existing repository spelling.
 - **Synthetic Fixture Verification Suite (24-Row Suite)**:
   - Confirmed in Databricks that all `24` synthetic fixture rows passed classification and reconciliation checks (`4` accepted, `19` quarantined, `1` identical duplicate extra, `4` distinct accepted IDs, `2` non-blank `_rescued_data` rows quarantined with `unexpected_rescued_data`, and `1` whitespace-only `_rescued_data` row accepted).
 
-### Local Checks vs. Pending Databricks Execution (Silver Persistence)
+### Local Checks vs. Pending Databricks Execution (Silver Persistence & Historical Features)
 - **Implemented & Reviewed Locally**:
   - Updated `docs/planning/IMPLEMENTATION_PLAN-phase-2-silver.md` and `pipelines/02_silver_transactions.ipynb` with explicit output projections (`ACCEPTED_SILVER_COLUMNS` and `QUARANTINE_SILVER_COLUMNS`), full-snapshot `overwrite` persistence for `workspace.sentinel_silver.transactions` and `workspace.sentinel_silver.quarantine`, and post-write read-back verification (`#e5f6a7b8`–`#d0e1f2a3`).
-  - Excluded unnecessary personal cardholder attributes (`first`, `last`, `gender`, `street`, `city`, `state`, `zip`, `lat`, `long`, `city_pop`, `job`, `dob`) from `workspace.sentinel_silver.transactions`.
-  - Routed all non-accepted records (`quarantined` and `duplicate_identical`) to `workspace.sentinel_silver.quarantine`, preserving `record_disposition`, `duplicate_status`, `duplicate_rank`, `validation_reasons`, raw values, and lineage references.
-  - Ensured persistence reads directly from `workspace.sentinel_bronze.transactions` (`bronze_for_persistence`), asserts no synthetic fixture rows are present, and validates reconciliation and accepted-key uniqueness before writing.
-  - Documented that the two table writes are separate Delta Lake transactions and that an incomplete run must never be recorded as successful.
-  - **Local Structural Check (Passed)**: Validated `.ipynb` JSON structure, 22 unique cell IDs, empty cell outputs, and Python AST compilation across all 11 code cells in `pipelines/02_silver_transactions.ipynb`.
+  - Created `pipelines/03_historical_features.ipynb` (`#a1b2c3d4`–`#f6a7b8c9`) to read `workspace.sentinel_silver.transactions` and compute per-transaction historical features (`card_txn_count_1h`, `card_txn_count_14d`, `card_avg_amount_14d`, `card_merchant_txn_count_1h`) over inclusive lower window boundaries (`-1 hour` and `-14 days`) while strictly excluding the current timestamp (`== event_time`) and all future events (`> event_time`).
+  - Preserved one output row per `trans_num`, set `card_avg_amount_14d` to `NULL` when `card_txn_count_14d == 0`, and added a synthetic verification suite (`#f6a7b8c9`) covering 1-hour/14-day boundaries, equal timestamps, no-history `NULL` average, and future-event exclusion (`exceptAll`).
+  - **Local Structural Check (Passed)**: Validated `.ipynb` JSON structure, unique cell IDs, empty cell outputs, and Python AST compilation across `pipelines/02_silver_transactions.ipynb` and `pipelines/03_historical_features.ipynb`.
 - **Pending Databricks Execution**:
-  - Runtime execution in Databricks of the new projection check (`#f6a7b8c9`), full-snapshot persistence (`#b8c9d0e1`), post-write read-back verification (`#d0e1f2a3`), and the second-run idempotency check is **pending**.
+  - Runtime execution in Databricks of `pipelines/02_silver_transactions.ipynb` persistence/verification cells (`#f6a7b8c9`, `#b8c9d0e1`, `#d0e1f2a3`) and `pipelines/03_historical_features.ipynb` (`#b2c3d4e5`, `#d4e5f6a7`, `#f6a7b8c9`) is **pending**.
 
 ### Remaining Planned Work
-1. Run the new Silver projection, persistence, and verification cells (`#f6a7b8c9`, `#b8c9d0e1`, `#d0e1f2a3`) in Databricks, then rerun persistence and verification once to confirm idempotency.
-2. Implement historical features using strictly earlier events.
-3. Implement three versioned monitoring rules.
-4. Implement Gold alerts and supporting evidence.
+1. Run `pipelines/02_silver_transactions.ipynb` persistence and verification in Databricks (if not already persisted), then run `pipelines/03_historical_features.ipynb` in Databricks.
+2. Implement three versioned monitoring rules.
+3. Implement Gold alerts and supporting evidence.
 
 ## Established Decisions
 

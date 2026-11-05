@@ -76,10 +76,16 @@ and content equality.
 6. Produce row-level dispositions and a reconciliation summary accounting for every input row exactly once (Verified in Databricks).
 7. Test invalid inputs, duplicate scenarios, missing IDs, and rescued-data handling using the 24-row synthetic fixture (Verified in Databricks).
 8. Persist `workspace.sentinel_silver.transactions` and `workspace.sentinel_silver.quarantine` in full-recomputation overwrite mode, read both tables back, and verify schemas, counts, key uniqueness, content equality (`exceptAll`), and rerun idempotency (Implemented locally in `pipelines/02_silver_transactions.ipynb`; pending Databricks execution).
+9. Compute point-in-time historical features from `workspace.sentinel_silver.transactions` in `pipelines/03_historical_features.ipynb` (display and synthetic verification only; no table writes yet):
+   - `card_txn_count_1h`: earlier payment count for the same `cc_num` in `[event_time - 1 hour, event_time)`.
+   - `card_txn_count_14d`: earlier payment count for the same `cc_num` in `[event_time - 14 days, event_time)`.
+   - `card_avg_amount_14d`: earlier average `amount` (`DECIMAL(18,2)`) for the same `cc_num` in `[event_time - 14 days, event_time)`, or `NULL` when `card_txn_count_14d == 0`.
+   - `card_merchant_txn_count_1h`: earlier payment count for the same `(cc_num, merchant)` in `[event_time - 1 hour, event_time)`.
+   - Verify 1:1 `trans_num` grain, lower-boundary inclusion, equal-timestamp exclusion, no-history `NULL` average, and future-event exclusion via synthetic tests.
 
 ## Constraints
 
-- Read only ingested Bronze transactions (`workspace.sentinel_bronze.transactions`).
+- Read only ingested Bronze transactions (`workspace.sentinel_bronze.transactions`) for Silver curation and `workspace.sentinel_silver.transactions` for historical features.
 - Exclude evaluation labels (`is_fraud`) and unnecessary personal attributes from accepted Silver.
 - Never persist synthetic fixtures into Silver or quarantine tables.
 - Preserve source references and raw values in quarantine for investigation.
@@ -91,3 +97,4 @@ and content equality.
 
 - Steps 1–7: Executed and confirmed in Databricks (`2,414` Bronze rows for `2019-01-01` and all `24` synthetic fixture rows passed).
 - Step 8 (Silver and quarantine persistence, post-write read-back verification, and rerun check): Implemented and reviewed locally in `pipelines/02_silver_transactions.ipynb`; pending Databricks execution.
+- Step 9 (Point-in-time historical feature calculation and synthetic boundary/future-exclusion tests): Implemented and reviewed locally in `pipelines/03_historical_features.ipynb` (display only, no table writes); pending Databricks execution.
