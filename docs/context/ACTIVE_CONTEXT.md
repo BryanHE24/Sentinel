@@ -17,7 +17,7 @@ Prioritize understandable implementation and small steps.
 
 ## Current Objective
 
-Simplify `pipelines/04_monitoring_rules.ipynb` to match the learning-prototype coding standards (short single-purpose cells, straightforward explainable SQL/PySpark, Markdown with purpose/reasoning/small example, basic count/uniqueness checks in `pipelines/`, and synthetic tests in `tests/`).
+Extend `scripts/03_release_replay.ipynb` to release January 2–28, 2019 (`initial_history` + `rule_development`), skipping already released dates and keeping January 29 onward unreleased for evaluation, and update downstream notebooks to verify against manifest-based expectations instead of hardcoded first-day counts (`2,414`).
 
 ## Development Workflow
 
@@ -80,22 +80,23 @@ The assessment filename above reflects the existing repository spelling.
   - Validation-reason summary: `0` rows.
 - **Silver Synthetic Fixture Verification Suite (24-Row Suite)**:
   - Confirmed in Databricks that all `24` synthetic fixture rows passed classification and reconciliation checks (`4` accepted, `19` quarantined, `1` identical duplicate extra, `4` distinct accepted IDs, `2` non-blank `_rescued_data` rows quarantined with `unexpected_rescued_data`, and `1` whitespace-only `_rescued_data` row accepted).
-- **Historical Features & Monitoring Rules (`2019-01-01` Batch & Synthetic Suites)**:
+- **Historical Features, Monitoring Rules & Gold Persistence (`2019-01-01` Batch & Synthetic Suites)**:
   - Confirmed in Databricks that `2,414` Silver transactions were evaluated by `pipelines/04_monitoring_rules.ipynb`.
   - Flagged transactions: `21` (`1` velocity match on `RULE_01_CARD_VELOCITY_1H`, `20` unusual amount matches on `RULE_02_UNUSUAL_AMOUNT_14D`, `0` repeated similar merchant matches on `RULE_03_REPEATED_SIMILAR_MERCHANT_1H`).
+  - Confirmed in Databricks that `workspace.sentinel_gold.alerts` verification passed: `21` alerts, `0` synthetic rows, exact saved-content equality (`exceptAll == 0`), and identical rerun results.
   - Confirmed in Databricks that all synthetic historical-feature and monitoring-rule tests passed.
 
-### Local Checks vs. Pending Databricks Execution (Simplified Monitoring Rules & Test Suite)
+### Local Checks vs. Pending Databricks Execution (Replay Extension Jan 2–28 & Manifest Expectations)
 - **Implemented & Reviewed Locally**:
-  - Simplified `pipelines/04_monitoring_rules.ipynb` (`#a1b2c3d4`–`#e1f2a3b4`) into a beginner-friendly 5-step Databricks flow: `read/features → three rule flags → evidence → save Gold → basic verification`, with short cells and Markdown explanations with small examples.
-  - Reused `evaluated_df` directly when saving `workspace.sentinel_gold.alerts` (`project_gold_alerts(evaluated_df)`) and removed all synthetic fixture dependencies from `pipelines/04_monitoring_rules.ipynb`.
-  - Moved the 25-row synthetic boundary tests and detailed Gold read-back/rerun verification into `tests/04_monitoring_rules_tests.ipynb`, loading the live rule constants and transformation functions directly from `pipelines/04_monitoring_rules.ipynb`.
-  - **Local Structural & Equivalence Check (Passed)**: Validated `.ipynb` JSON structure, unique cell IDs, empty cell outputs, Python AST compilation, and live AST function/constant loading across `pipelines/04_monitoring_rules.ipynb` and `tests/04_monitoring_rules_tests.ipynb`.
+  - Updated `scripts/03_release_replay.ipynb` to release `2019-01-01` through `2019-01-28` (`28` daily batches, `47,875` total rows across `initial_history` and `rule_development`), skip any date already present in `/Volumes/workspace/sentinel_sources/replay_landing` without overwriting files, verify daily staged and landing counts against `/Volumes/workspace/sentinel_sources/replay_staging/replay_v1/manifest`, and keep `2019-01-29` onward (`evaluation`) unreleased.
+  - Updated `pipelines/01_bronze_transactions.ipynb` to replace the hardcoded `2,414` first-day assertions with manifest-based daily and total verification across all released batches in `replay_landing`.
+  - Updated `pipelines/02_silver_transactions.ipynb` (`#c9d0e1f2`, `#d0e1f2a3`) to verify per-batch `saved_accepted + saved_quarantine` counts against the replay manifest and remove the hardcoded `2,414`-only rerun note.
+  - **Local Structural & Syntax Check (Passed)**: Validated `.ipynb` JSON structure, cell IDs, empty outputs, and Python AST compilation across `scripts/03_release_replay.ipynb`, `pipelines/01_bronze_transactions.ipynb`, and `pipelines/02_silver_transactions.ipynb`.
 - **Pending Databricks Execution**:
-  - Execution of the simplified `pipelines/04_monitoring_rules.ipynb` and `tests/04_monitoring_rules_tests.ipynb` in Databricks is **pending**.
+  - Execution of the January 2–28 replay release and downstream pipeline/test notebooks in Databricks is **pending**.
 
 ### Remaining Planned Work
-1. Run `pipelines/04_monitoring_rules.ipynb` and `tests/04_monitoring_rules_tests.ipynb` in Databricks to verify Gold alert persistence and test equivalence.
+1. Run `scripts/03_release_replay.ipynb` and the downstream pipeline/test notebooks in Databricks across the January 1–28 batches (`47,875` transactions).
 
 ## Established Decisions
 
