@@ -46,7 +46,7 @@ explain → implement → run → inspect → document → commit.
 - Reran ingestion with the same checkpoint; no rows were added.
 - Phase 1 final commit: a81ba70.
 
-## Existing Notebooks
+## Existing Notebooks & Shared Modules
 
 - explorations/01_source_assesment.ipynb
 - scripts/02_prepare_replay.ipynb
@@ -54,6 +54,8 @@ explain → implement → run → inspect → document → commit.
 - pipelines/01_bronze_transactions.ipynb
 - pipelines/02_silver_transactions.ipynb
 - pipelines/03_historical_features.ipynb
+- pipelines/04_monitoring_rules.ipynb
+- pipelines/historical_features.py
 
 The assessment filename above reflects the existing repository spelling.
 
@@ -74,22 +76,28 @@ The assessment filename above reflects the existing repository spelling.
   - Distinct accepted IDs: `2,414`
   - Disposition summary: all `2,414` rows classified as `accepted` / `unique_id`.
   - Validation-reason summary: `0` rows.
-- **Synthetic Fixture Verification Suite (24-Row Suite)**:
+- **Silver Synthetic Fixture Verification Suite (24-Row Suite)**:
   - Confirmed in Databricks that all `24` synthetic fixture rows passed classification and reconciliation checks (`4` accepted, `19` quarantined, `1` identical duplicate extra, `4` distinct accepted IDs, `2` non-blank `_rescued_data` rows quarantined with `unexpected_rescued_data`, and `1` whitespace-only `_rescued_data` row accepted).
+- **Historical Features Synthetic Verification Suite**:
+  - Confirmed in Databricks that all synthetic historical-feature tests in `pipelines/03_historical_features.ipynb` passed (lower boundaries `-1h`/`-14d` included, `-1h-1s`/`-14d-1s` excluded, equal timestamps excluded, no-history `NULL` average, and future-event exclusion).
+  - Real-data feature row counts have not yet been supplied.
 
-### Local Checks vs. Pending Databricks Execution (Silver Persistence & Historical Features)
+### Local Checks vs. Pending Databricks Execution (Historical Features & Monitoring Rules)
 - **Implemented & Reviewed Locally**:
-  - Updated `docs/planning/IMPLEMENTATION_PLAN-phase-2-silver.md` and `pipelines/02_silver_transactions.ipynb` with explicit output projections (`ACCEPTED_SILVER_COLUMNS` and `QUARANTINE_SILVER_COLUMNS`), full-snapshot `overwrite` persistence for `workspace.sentinel_silver.transactions` and `workspace.sentinel_silver.quarantine`, and post-write read-back verification (`#e5f6a7b8`–`#d0e1f2a3`).
-  - Created `pipelines/03_historical_features.ipynb` (`#a1b2c3d4`–`#f6a7b8c9`) to read `workspace.sentinel_silver.transactions` and compute per-transaction historical features (`card_txn_count_1h`, `card_txn_count_14d`, `card_avg_amount_14d`, `card_merchant_txn_count_1h`) over inclusive lower window boundaries (`-1 hour` and `-14 days`) while strictly excluding the current timestamp (`== event_time`) and all future events (`> event_time`).
-  - Preserved one output row per `trans_num`, set `card_avg_amount_14d` to `NULL` when `card_txn_count_14d == 0`, and added a synthetic verification suite (`#f6a7b8c9`) covering 1-hour/14-day boundaries, equal timestamps, no-history `NULL` average, and future-event exclusion (`exceptAll`).
-  - **Local Structural Check (Passed)**: Validated `.ipynb` JSON structure, unique cell IDs, empty cell outputs, and Python AST compilation across `pipelines/02_silver_transactions.ipynb` and `pipelines/03_historical_features.ipynb`.
+  - Extracted shared historical feature transformation (`compute_historical_features` and `assert_feature_grain_and_null_semantics`) into `pipelines/historical_features.py` so both `pipelines/03_historical_features.ipynb` and `pipelines/04_monitoring_rules.ipynb` use the same implementation without code duplication.
+  - Added `card_merchant_similar_amount_count_1h` (count of prior payments for the same `(cc_num, merchant)` in `[event_time - 1 hour, event_time)` within `±10%` of the current `amount`) alongside `card_merchant_txn_count_1h`.
+  - Created `pipelines/04_monitoring_rules.ipynb` implementing three versioned rules with named provisional thresholds:
+    - `RULE_01_CARD_VELOCITY_1H` (`v1.0-provisional`): `card_txn_count_1h >= 3`.
+    - `RULE_02_UNUSUAL_AMOUNT_14D` (`v1.0-provisional`): `card_txn_count_14d >= 5` and `amount >= 3.00 * card_avg_amount_14d`.
+    - `RULE_03_REPEATED_SIMILAR_MERCHANT_1H` (`v1.0-provisional`): `card_merchant_similar_amount_count_1h >= 2` (within `±10%` of current `amount`; merchant count alone does not establish similar amounts).
+  - Preserved one output row per transaction (`trans_num`) with `matched_rule_ids`, `matched_rule_versions`, `matched_rule_count`, `is_flagged`, and structured `rule_evidence`, plus synthetic verification tests covering matches, non-matches, exact boundaries, and insufficient history.
+  - **Local Structural Check (Passed)**: Validated `.ipynb` JSON structure, unique cell IDs, empty cell outputs, and Python AST compilation across `pipelines/historical_features.py`, `pipelines/03_historical_features.ipynb`, and `pipelines/04_monitoring_rules.ipynb`.
 - **Pending Databricks Execution**:
-  - Runtime execution in Databricks of `pipelines/02_silver_transactions.ipynb` persistence/verification cells (`#f6a7b8c9`, `#b8c9d0e1`, `#d0e1f2a3`) and `pipelines/03_historical_features.ipynb` (`#b2c3d4e5`, `#d4e5f6a7`, `#f6a7b8c9`) is **pending**.
+  - Reporting of real-data feature row counts and execution of `pipelines/04_monitoring_rules.ipynb` (`#b2c3d4e5`, `#d4e5f6a7`, `#f6a7b8c9`) in Databricks are **pending**.
 
 ### Remaining Planned Work
-1. Run `pipelines/02_silver_transactions.ipynb` persistence and verification in Databricks (if not already persisted), then run `pipelines/03_historical_features.ipynb` in Databricks.
-2. Implement three versioned monitoring rules.
-3. Implement Gold alerts and supporting evidence.
+1. Run `pipelines/04_monitoring_rules.ipynb` in Databricks and supply real-data feature counts and rule evaluation outcomes.
+2. Implement Gold alerts and supporting evidence.
 
 ## Established Decisions
 

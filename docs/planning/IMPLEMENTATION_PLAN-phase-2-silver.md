@@ -76,12 +76,18 @@ and content equality.
 6. Produce row-level dispositions and a reconciliation summary accounting for every input row exactly once (Verified in Databricks).
 7. Test invalid inputs, duplicate scenarios, missing IDs, and rescued-data handling using the 24-row synthetic fixture (Verified in Databricks).
 8. Persist `workspace.sentinel_silver.transactions` and `workspace.sentinel_silver.quarantine` in full-recomputation overwrite mode, read both tables back, and verify schemas, counts, key uniqueness, content equality (`exceptAll`), and rerun idempotency (Implemented locally in `pipelines/02_silver_transactions.ipynb`; pending Databricks execution).
-9. Compute point-in-time historical features from `workspace.sentinel_silver.transactions` in `pipelines/03_historical_features.ipynb` (display and synthetic verification only; no table writes yet):
+9. Compute point-in-time historical features from `workspace.sentinel_silver.transactions` in `pipelines/03_historical_features.ipynb` using shared module `pipelines/historical_features.py` (display and synthetic verification only; no table writes yet):
    - `card_txn_count_1h`: earlier payment count for the same `cc_num` in `[event_time - 1 hour, event_time)`.
    - `card_txn_count_14d`: earlier payment count for the same `cc_num` in `[event_time - 14 days, event_time)`.
    - `card_avg_amount_14d`: earlier average `amount` (`DECIMAL(18,2)`) for the same `cc_num` in `[event_time - 14 days, event_time)`, or `NULL` when `card_txn_count_14d == 0`.
    - `card_merchant_txn_count_1h`: earlier payment count for the same `(cc_num, merchant)` in `[event_time - 1 hour, event_time)`.
-   - Verify 1:1 `trans_num` grain, lower-boundary inclusion, equal-timestamp exclusion, no-history `NULL` average, and future-event exclusion via synthetic tests.
+   - `card_merchant_similar_amount_count_1h`: earlier payment count for the same `(cc_num, merchant)` in `[event_time - 1 hour, event_time)` within `±10%` of the current `amount`.
+   - Verify 1:1 `trans_num` grain, lower-boundary inclusion, equal-timestamp exclusion, no-history `NULL` average, and future-event exclusion via synthetic tests (Confirmed passed in Databricks; real-data feature row counts pending inspection).
+10. Evaluate three versioned provisional monitoring rules in `pipelines/04_monitoring_rules.ipynb` using `pipelines/historical_features.py` without copying feature logic (display only; no Gold table writes yet):
+   - `RULE_01_CARD_VELOCITY_1H` (`v1.0-provisional`): `card_txn_count_1h >= 3`.
+   - `RULE_02_UNUSUAL_AMOUNT_14D` (`v1.0-provisional`): `card_txn_count_14d >= 5` and `amount >= 3.00 * card_avg_amount_14d`.
+   - `RULE_03_REPEATED_SIMILAR_MERCHANT_1H` (`v1.0-provisional`): `card_merchant_similar_amount_count_1h >= 2` (within `±10%` of current `amount`; merchant count alone does not establish similar amounts).
+   - Preserve 1 row per `trans_num`, record matched rule IDs/versions and structured supporting evidence, verify real feature counts and unique IDs, and test matches, non-matches, exact boundaries, and insufficient history.
 
 ## Constraints
 
@@ -96,5 +102,6 @@ and content equality.
 ## Status
 
 - Steps 1–7: Executed and confirmed in Databricks (`2,414` Bronze rows for `2019-01-01` and all `24` synthetic fixture rows passed).
-- Step 8 (Silver and quarantine persistence, post-write read-back verification, and rerun check): Implemented and reviewed locally in `pipelines/02_silver_transactions.ipynb`; pending Databricks execution.
-- Step 9 (Point-in-time historical feature calculation and synthetic boundary/future-exclusion tests): Implemented and reviewed locally in `pipelines/03_historical_features.ipynb` (display only, no table writes); pending Databricks execution.
+- Step 8 (Silver and quarantine persistence, post-write read-back verification, and rerun check): Implemented and reviewed locally in `pipelines/02_silver_transactions.ipynb`; pending Databricks result reporting.
+- Step 9 (Point-in-time historical feature calculation and synthetic boundary/future-exclusion tests): Synthetic verification tests confirmed passed in Databricks; real-data feature row counts not yet supplied; extracted shared `pipelines/historical_features.py` with `card_merchant_similar_amount_count_1h`.
+- Step 10 (Versioned provisional monitoring rules, evidence display, and synthetic rule boundary/insufficient-history tests): Implemented and reviewed locally in `pipelines/04_monitoring_rules.ipynb` (display only, no Gold table writes); pending Databricks execution.
