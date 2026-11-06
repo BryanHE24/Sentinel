@@ -2,7 +2,7 @@
 
 ## Session Metadata
 
-- Last updated: 2026-11-05
+- Last updated: 2026-11-06
 - Active role: QA Engineer
 - Mode: VERIFICATION
 
@@ -16,7 +16,7 @@ An alert does not automatically establish fraud or block a transaction.
 
 ## Current Objective
 
-Verify Silver persistence (`pipelines/02_silver_transactions.ipynb`) and point-in-time historical feature calculation (`pipelines/03_historical_features.ipynb`) in Databricks.
+Persist flagged monitoring alerts to `workspace.sentinel_gold.alerts` in `pipelines/04_monitoring_rules.ipynb` and verify counts, unique IDs, retained evidence, and rerun idempotency in Databricks.
 
 ## Development Workflow
 
@@ -78,26 +78,23 @@ The assessment filename above reflects the existing repository spelling.
   - Validation-reason summary: `0` rows.
 - **Silver Synthetic Fixture Verification Suite (24-Row Suite)**:
   - Confirmed in Databricks that all `24` synthetic fixture rows passed classification and reconciliation checks (`4` accepted, `19` quarantined, `1` identical duplicate extra, `4` distinct accepted IDs, `2` non-blank `_rescued_data` rows quarantined with `unexpected_rescued_data`, and `1` whitespace-only `_rescued_data` row accepted).
-- **Historical Features Synthetic Verification Suite**:
-  - Confirmed in Databricks that all synthetic historical-feature tests in `pipelines/03_historical_features.ipynb` passed (lower boundaries `-1h`/`-14d` included, `-1h-1s`/`-14d-1s` excluded, equal timestamps excluded, no-history `NULL` average, and future-event exclusion).
-  - Real-data feature row counts have not yet been supplied.
+- **Historical Features & Monitoring Rules (`2019-01-01` Batch & Synthetic Suites)**:
+  - Confirmed in Databricks that `2,414` Silver transactions were evaluated by `pipelines/04_monitoring_rules.ipynb`.
+  - Flagged transactions: `21` (`1` velocity match on `RULE_01_CARD_VELOCITY_1H`, `20` unusual amount matches on `RULE_02_UNUSUAL_AMOUNT_14D`, `0` repeated similar merchant matches on `RULE_03_REPEATED_SIMILAR_MERCHANT_1H`).
+  - Confirmed in Databricks that all synthetic historical-feature and monitoring-rule tests passed.
 
-### Local Checks vs. Pending Databricks Execution (Historical Features & Monitoring Rules)
+### Local Checks vs. Pending Databricks Execution (Gold Alerts Persistence)
 - **Implemented & Reviewed Locally**:
-  - Extracted shared historical feature transformation (`compute_historical_features` and `assert_feature_grain_and_null_semantics`) into `pipelines/historical_features.py` so both `pipelines/03_historical_features.ipynb` and `pipelines/04_monitoring_rules.ipynb` use the same implementation without code duplication.
-  - Added `card_merchant_similar_amount_count_1h` (count of prior payments for the same `(cc_num, merchant)` in `[event_time - 1 hour, event_time)` within `±10%` of the current `amount`) alongside `card_merchant_txn_count_1h`.
-  - Created `pipelines/04_monitoring_rules.ipynb` implementing three versioned rules with named provisional thresholds:
-    - `RULE_01_CARD_VELOCITY_1H` (`v1.0-provisional`): `card_txn_count_1h >= 3`.
-    - `RULE_02_UNUSUAL_AMOUNT_14D` (`v1.0-provisional`): `card_txn_count_14d >= 5` and `amount >= 3.00 * card_avg_amount_14d`.
-    - `RULE_03_REPEATED_SIMILAR_MERCHANT_1H` (`v1.0-provisional`): `card_merchant_similar_amount_count_1h >= 2` (within `±10%` of current `amount`; merchant count alone does not establish similar amounts).
-  - Preserved one output row per transaction (`trans_num`) with `matched_rule_ids`, `matched_rule_versions`, `matched_rule_count`, `is_flagged`, and structured `rule_evidence`, plus synthetic verification tests covering matches, non-matches, exact boundaries, and insufficient history.
-  - **Local Structural Check (Passed)**: Validated `.ipynb` JSON structure, unique cell IDs, empty cell outputs, and Python AST compilation across `pipelines/historical_features.py`, `pipelines/03_historical_features.ipynb`, and `pipelines/04_monitoring_rules.ipynb`.
+  - Added Gold persistence (`Step 4`, `#a7b8c9d0`–`#b8c9d0e1`) and post-write read-back + rerun verification (`Step 5`, `#c9d0e1f2`–`#d0e1f2a3`) to `pipelines/04_monitoring_rules.ipynb`.
+  - Target table: `workspace.sentinel_gold.alerts` (rebuilt in `overwrite` mode from real Silver transactions via `build_real_gold_alerts()`, with an explicit guard preventing synthetic test records from being persisted).
+  - Preserves one row per flagged transaction (`trans_num`) with a stable deterministic `alert_id` (`SHA-256(ruleset_version || '|' || trans_num)`), transaction details, observed feature values, matching rule IDs/versions, and structured `rule_evidence` (`GOLD_ALERTS_COLUMNS`), excluding fraud labels and analyst workflow fields.
+  - Reads back `workspace.sentinel_gold.alerts`, verifies expected row count (`21` for `2019-01-01`), unique `alert_id` and `trans_num`, retained non-null `rule_evidence`, `exceptAll` content equality, and a second-write rerun idempotency check.
+  - **Local Structural Check (Passed)**: Validated `.ipynb` JSON structure, 10 unique cell IDs, empty cell outputs, and Python AST compilation across `pipelines/04_monitoring_rules.ipynb`.
 - **Pending Databricks Execution**:
-  - Reporting of real-data feature row counts and execution of `pipelines/04_monitoring_rules.ipynb` (`#b2c3d4e5`, `#d4e5f6a7`, `#f6a7b8c9`) in Databricks are **pending**.
+  - Execution of the new Gold persistence and read-back/rerun verification cells (`#b8c9d0e1` and `#d0e1f2a3`) in `pipelines/04_monitoring_rules.ipynb` is **pending**.
 
 ### Remaining Planned Work
-1. Run `pipelines/04_monitoring_rules.ipynb` in Databricks and supply real-data feature counts and rule evaluation outcomes.
-2. Implement Gold alerts and supporting evidence.
+1. Run Cells `#b8c9d0e1` and `#d0e1f2a3` of `pipelines/04_monitoring_rules.ipynb` in Databricks to persist and verify `workspace.sentinel_gold.alerts`.
 
 ## Established Decisions
 
