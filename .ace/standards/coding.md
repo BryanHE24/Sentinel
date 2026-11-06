@@ -2,13 +2,15 @@
 
 ## 1. Readability and Learning
 
+- Prefer straightforward SQL/PySpark that a learner can explain.
 - Use descriptive names and explicit transformations.
 - Keep implementation simple and focused on the current requirement.
-- Add concise comments explaining each cell's purpose.
-- Explain important operations, assumptions, and business decisions.
+- Avoid unnecessary abstractions, repeated computation, and checks.
+- Do not simplify by hiding large code blocks in helper modules.
+- Preserve essential validation, earlier-only history, and alert evidence.
+- Add concise comments explaining each cell's purpose and key decisions.
 - Avoid comments that merely repeat obvious syntax.
 - Remove abandoned code; Git preserves its history.
-- Extract shared logic when it prevents meaningful duplication.
 
 ## 2. Repository Organization
 
@@ -18,16 +20,18 @@
 - Keep source assessment in explorations/.
 - Keep replay preparation and release utilities in scripts/.
 - Keep ingestion and transformation notebooks in pipelines/.
-- Keep reusable verification tests in tests/.
+- Keep synthetic tests and detailed verification in tests/.
+- Keep basic count and uniqueness checks in pipeline notebooks.
 - Keep project decisions, plans, and findings in docs/.
 - Keep downloaded datasets and generated data out of Git.
 
 ## 3. Notebook Structure
 
 - Begin with a Markdown cell describing purpose, inputs, and outputs.
-- Organize cells into configuration, transformation, persistence,
-  and verification sections where applicable.
-- Keep each cell focused on one understandable step.
+- Markdown explains purpose, reasoning, and a small example.
+- Use short cells with one clear purpose.
+- Organize pipeline cells into configuration, transformation, persistence,
+  and basic count/uniqueness checks where applicable.
 - Define imports and configuration before using them.
 - Ensure a fresh session can run the notebook from top to bottom.
 - Document cells that write, replace, or release data.
@@ -38,9 +42,9 @@
 
 - Follow PEP 8 and use snake_case for variables and functions.
 - Use `from pyspark.sql import functions as F` consistently.
-- Prefer Spark expressions over Python UDFs when practical.
-- Use type hints and docstrings for reusable public functions.
-- Keep transformations separate from storage operations.
+- Prefer clear Spark SQL or DataFrame expressions over Python UDFs.
+- Keep transformations readable inline rather than wrapped in heavy helpers.
+- Reuse computed DataFrames instead of recomputing the same transformations.
 - Avoid collecting full datasets into driver memory.
 - Use small, explicit samples for inspection.
 - Use descriptive names for thresholds, paths, and table references.
@@ -70,7 +74,7 @@
 - Do not arbitrarily choose between conflicting transaction records.
 - Keep accepted transaction IDs unique.
 - Retain source references needed to investigate rejected records.
-- Verify saved outputs, not only intermediate DataFrames.
+- Verify saved outputs with basic count and uniqueness checks.
 
 ## 7. Historical Features
 
@@ -80,7 +84,7 @@
 - Define inclusive and exclusive window boundaries explicitly.
 - Handle insufficient history explicitly.
 - Never replace missing history with an unexplained default.
-- Verify that joins preserve one feature row per transaction.
+- Verify that transformations preserve one feature row per transaction.
 - Test that adding future events does not change earlier features.
 
 ## 8. Monitoring Rules and Gold Outputs
@@ -108,8 +112,9 @@
 
 ## 10. Verification
 
-- Test transformation behavior using small, controlled fixtures.
-- Include invalid fields, malformed values, and duplicate IDs.
+- Keep basic count and uniqueness checks in pipeline notebooks.
+- Keep synthetic fixture tests and detailed verification in tests/.
+- Test invalid fields, malformed values, and duplicate IDs.
 - Test rules below, at, and above their thresholds.
 - Test time boundaries, equal timestamps, and insufficient history.
 - Check row reconciliation, key uniqueness, and join grain.
@@ -130,4 +135,4 @@
 - Use focused commits with descriptive messages.
 - Never commit secrets, tokens, or credentials.
 
-Last updated: 2026-11-05
+Last updated: 2026-11-06

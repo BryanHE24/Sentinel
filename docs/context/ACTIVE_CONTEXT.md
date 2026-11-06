@@ -8,15 +8,16 @@
 
 ## Project
 
-Sentinel is a fintech transaction monitoring and investigation platform.
+Sentinel is a learning prototype combining Databricks skills with a polished React UI for fintech transaction monitoring and investigation.
 
 Transactions are validated, enriched with earlier activity, and assessed
 using monitoring rules. Alerts provide evidence for analyst review.
 An alert does not automatically establish fraud or block a transaction.
+Prioritize understandable implementation and small steps.
 
 ## Current Objective
 
-Persist flagged monitoring alerts to `workspace.sentinel_gold.alerts` in `pipelines/04_monitoring_rules.ipynb` and verify counts, unique IDs, retained evidence, and rerun idempotency in Databricks.
+Simplify `pipelines/04_monitoring_rules.ipynb` to match the learning-prototype coding standards (short single-purpose cells, straightforward explainable SQL/PySpark, Markdown with purpose/reasoning/small example, basic count/uniqueness checks in `pipelines/`, and synthetic tests in `tests/`).
 
 ## Development Workflow
 
@@ -56,6 +57,7 @@ explain → implement → run → inspect → document → commit.
 - pipelines/03_historical_features.ipynb
 - pipelines/04_monitoring_rules.ipynb
 - pipelines/historical_features.py
+- tests/04_monitoring_rules_tests.ipynb
 
 The assessment filename above reflects the existing repository spelling.
 
@@ -83,18 +85,17 @@ The assessment filename above reflects the existing repository spelling.
   - Flagged transactions: `21` (`1` velocity match on `RULE_01_CARD_VELOCITY_1H`, `20` unusual amount matches on `RULE_02_UNUSUAL_AMOUNT_14D`, `0` repeated similar merchant matches on `RULE_03_REPEATED_SIMILAR_MERCHANT_1H`).
   - Confirmed in Databricks that all synthetic historical-feature and monitoring-rule tests passed.
 
-### Local Checks vs. Pending Databricks Execution (Gold Alerts Persistence)
+### Local Checks vs. Pending Databricks Execution (Simplified Monitoring Rules & Test Suite)
 - **Implemented & Reviewed Locally**:
-  - Added Gold persistence (`Step 4`, `#a7b8c9d0`–`#b8c9d0e1`) and post-write read-back + rerun verification (`Step 5`, `#c9d0e1f2`–`#d0e1f2a3`) to `pipelines/04_monitoring_rules.ipynb`.
-  - Target table: `workspace.sentinel_gold.alerts` (rebuilt in `overwrite` mode from real Silver transactions via `build_real_gold_alerts()`, with an explicit guard preventing synthetic test records from being persisted).
-  - Preserves one row per flagged transaction (`trans_num`) with a stable deterministic `alert_id` (`SHA-256(ruleset_version || '|' || trans_num)`), transaction details, observed feature values, matching rule IDs/versions, and structured `rule_evidence` (`GOLD_ALERTS_COLUMNS`), excluding fraud labels and analyst workflow fields.
-  - Reads back `workspace.sentinel_gold.alerts`, verifies expected row count (`21` for `2019-01-01`), unique `alert_id` and `trans_num`, retained non-null `rule_evidence`, `exceptAll` content equality, and a second-write rerun idempotency check.
-  - **Local Structural Check (Passed)**: Validated `.ipynb` JSON structure, 10 unique cell IDs, empty cell outputs, and Python AST compilation across `pipelines/04_monitoring_rules.ipynb`.
+  - Simplified `pipelines/04_monitoring_rules.ipynb` (`#a1b2c3d4`–`#e1f2a3b4`) into a beginner-friendly 5-step Databricks flow: `read/features → three rule flags → evidence → save Gold → basic verification`, with short cells and Markdown explanations with small examples.
+  - Reused `evaluated_df` directly when saving `workspace.sentinel_gold.alerts` (`project_gold_alerts(evaluated_df)`) and removed all synthetic fixture dependencies from `pipelines/04_monitoring_rules.ipynb`.
+  - Moved the 25-row synthetic boundary tests and detailed Gold read-back/rerun verification into `tests/04_monitoring_rules_tests.ipynb`, loading the live rule constants and transformation functions directly from `pipelines/04_monitoring_rules.ipynb`.
+  - **Local Structural & Equivalence Check (Passed)**: Validated `.ipynb` JSON structure, unique cell IDs, empty cell outputs, Python AST compilation, and live AST function/constant loading across `pipelines/04_monitoring_rules.ipynb` and `tests/04_monitoring_rules_tests.ipynb`.
 - **Pending Databricks Execution**:
-  - Execution of the new Gold persistence and read-back/rerun verification cells (`#b8c9d0e1` and `#d0e1f2a3`) in `pipelines/04_monitoring_rules.ipynb` is **pending**.
+  - Execution of the simplified `pipelines/04_monitoring_rules.ipynb` and `tests/04_monitoring_rules_tests.ipynb` in Databricks is **pending**.
 
 ### Remaining Planned Work
-1. Run Cells `#b8c9d0e1` and `#d0e1f2a3` of `pipelines/04_monitoring_rules.ipynb` in Databricks to persist and verify `workspace.sentinel_gold.alerts`.
+1. Run `pipelines/04_monitoring_rules.ipynb` and `tests/04_monitoring_rules_tests.ipynb` in Databricks to verify Gold alert persistence and test equivalence.
 
 ## Established Decisions
 
@@ -115,19 +116,17 @@ The assessment filename above reflects the existing repository spelling.
 
 ## Implementation Requirements
 
-- Use descriptive names and focused notebook cells.
-- Explain purpose and important decisions in comments.
-- Account for every input row.
-- Preserve one accepted row per transaction ID.
-- Prevent future events from entering historical features.
-- Preserve intended row counts when joining data.
+- Prefer straightforward SQL/PySpark that a learner can explain.
+- Use short cells with one clear purpose; Markdown explains purpose, reasoning, and a small example.
+- Keep basic count and uniqueness checks in pipeline notebooks; keep synthetic tests and detailed verification in `tests/`.
+- Avoid unnecessary abstractions, repeated computation, and checks; do not simplify by hiding large code blocks in helper modules.
+- Preserve essential validation, earlier-only history, one row per transaction ID, and alert evidence.
 - Distinguish proposed checks from executed checks.
 
 ## Next Steps
 
-1. Commit and push the updated notebook, plan, and active context when ready, then pull in Databricks.
-2. Execute `pipelines/02_silver_transactions.ipynb` through Cell 22 (`#d0e1f2a3`) in Databricks, then re-execute Cells 20 (`#b8c9d0e1`) and 22 (`#d0e1f2a3`) to verify rerun idempotency.
-3. Record confirmed persistence and rerun verification results before starting historical feature engineering.
+1. Simplify `pipelines/04_monitoring_rules.ipynb` to follow the updated learning-prototype standards.
+2. Run and verify `workspace.sentinel_gold.alerts` in Databricks.
 
 ## Verification Limitations
 
