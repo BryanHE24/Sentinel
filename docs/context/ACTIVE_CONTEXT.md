@@ -17,7 +17,7 @@ Prioritize understandable implementation and small steps.
 
 ## Current Objective
 
-Evaluate frozen monitoring rules (`ruleset-v1.0-frozen`) on the January 29–February 11, 2019 holdout period using the separate fraud labels (`pipelines/05_rule_evaluation.ipynb`), keeping labels outside monitoring inputs and Gold alerts.
+Phase 2 is **complete and verified**. The frozen monitoring ruleset (`ruleset-v1.0-frozen`) has been evaluated on the January 29–February 11, 2019 holdout period (`24,059` transactions) as a prototype baseline with thresholds kept unchanged.
 
 ## Development Workflow
 
@@ -58,11 +58,12 @@ explain → implement → run → inspect → document → commit.
 - pipelines/04_monitoring_rules.ipynb
 - pipelines/05_rule_evaluation.ipynb
 - pipelines/historical_features.py
+- tests/02_silver_transactions_tests.ipynb
 - tests/04_monitoring_rules_tests.ipynb
 
 The assessment filename above reflects the existing repository spelling.
 
-## Phase 2 Status
+## Phase 2: Completed and Verified
 
 ### Executed and Confirmed in Databricks
 - **Bronze Schema, Amount Precision & Rescued Data (`2019-01-01` Batch)**:
@@ -89,19 +90,22 @@ The assessment filename above reflects the existing repository spelling.
     - Flagged transactions: `1,376` (`5.8%`)
     - Rule matches: `25` velocity (`RULE_01_CARD_VELOCITY_1H`), `1,356` unusual amount (`RULE_02_UNUSUAL_AMOUNT_14D`), `0` repeated similar payments (`RULE_03_REPEATED_SIMILAR_MERCHANT_1H`)
     - Multi-rule transactions: `5`
+- **Frozen-Rule Evaluation Summary (`2019-01-29` through `2019-02-11` Holdout Period)**:
+  - Evaluated transactions: `24,059` (`42` total daily batches / `71,934` total transactions released and ingested)
+  - Flagged alerts (`ruleset-v1.0-frozen`): `1,423`
+  - Labeled fraud transactions: `256`
+  - Confusion matrix: `TP = 116`, `FP = 1,307`, `FN = 140`, `TN = 22,496`
+  - Precision: `8.15%` (`0.0815`)
+  - Recall: `45.31%` (`0.4531`)
+  - **Baseline Assessment**: This frozen ruleset (`ruleset-v1.0-frozen`) serves as a simple prototype baseline with substantial false alarms (`1,307` false positives) and missed fraud (`140` false negatives), motivating analyst review workflows and AI/triage enrichment while keeping rule thresholds unchanged.
 
-### Local Checks vs. Pending Databricks Execution (Frozen Thresholds, Evaluation Release Option & Evaluation Notebook)
+### Local Checks vs. Pending Databricks Execution (Refactored `02_silver_transactions` & Test Suite)
 - **Implemented & Reviewed Locally**:
-  - Froze existing monitoring thresholds and versions in `pipelines/04_monitoring_rules.ipynb` and `tests/04_monitoring_rules_tests.ipynb` (`ACTIVE_RULESET_VERSION = "ruleset-v1.0-frozen"`, rule versions `v1.0-frozen`, keeping `RULE_01_MIN_PRIOR_CARD_TXNS_1H = 3`, `RULE_02_MIN_PRIOR_CARD_TXNS_14D = 5`, `RULE_02_AMOUNT_MULTIPLIER = Decimal("3.00")`, `RULE_03_MIN_SIMILAR_MERCHANT_TXNS_1H = 2`, `RULE_03_AMOUNT_TOLERANCE_PCT = Decimal("0.10")`).
-  - Added explicit `RELEASE_EVALUATION_BATCHES = False` (default disabled) in `scripts/03_release_replay.ipynb` to allow releasing January 29–February 11, 2019 (`42` total batches, `71,934` transactions) only when deliberately enabled.
-  - Updated manifest checks in `pipelines/01_bronze_transactions.ipynb` so evaluation dates (`>= 2019-01-29`) are accepted only when deliberately released into `replay_landing`.
-  - Created `pipelines/05_rule_evaluation.ipynb` to compare frozen-rule alerts (`workspace.sentinel_gold.alerts`) against separate fraud labels (`/Volumes/workspace/sentinel_evaluation/evaluation_labels/replay_v1`) for January 29–February 11, 2019 only, reporting `TP`, `FP`, `FN`, `TN`, `precision`, and `recall` (with safe zero-denominator handling) while keeping labels outside monitoring inputs and Gold alerts.
-  - **Local Structural & Syntax Check (Passed)**: Validated `.ipynb` JSON structure, unique cell IDs, empty outputs, and Python AST compilation across all modified and new notebooks.
+  - Refactored `pipelines/02_silver_transactions.ipynb` (`16` cells, `#a1b2c3d4`–`#d6e7f8a9`) into a beginner-friendly 7-step flow (`read → convert types → validate → classify duplicates → split outputs → save → basic verification`) with short cells and Markdown explanations with small examples.
+  - Moved the 24-row synthetic fixture tests, rescued-data checks, and detailed `exceptAll` read-back verification into `tests/02_silver_transactions_tests.ipynb`.
+  - Preserved all schemas, validation reasons, duplicate policies, row accounting, and full-snapshot overwrite behavior without introducing AST loaders or heavy helper modules.
 - **Pending Databricks Execution**:
-  - Releasing January 29–February 11 (`RELEASE_EVALUATION_BATCHES = True`), ingesting and running frozen rules, and executing `pipelines/05_rule_evaluation.ipynb` in Databricks are **pending**.
-
-### Remaining Planned Work
-1. Set `RELEASE_EVALUATION_BATCHES = True` in `scripts/03_release_replay.ipynb`, run the release and processing pipeline through `pipelines/04_monitoring_rules.ipynb`, and run `pipelines/05_rule_evaluation.ipynb` in Databricks.
+  - Execution of the refactored `pipelines/02_silver_transactions.ipynb` and `tests/02_silver_transactions_tests.ipynb` in Databricks to confirm identical before/after table outputs is **pending**.
 
 ## Established Decisions
 
@@ -131,8 +135,7 @@ The assessment filename above reflects the existing repository spelling.
 
 ## Next Steps
 
-1. Simplify `pipelines/04_monitoring_rules.ipynb` to follow the updated learning-prototype standards.
-2. Run and verify `workspace.sentinel_gold.alerts` in Databricks.
+1. Proceed to Phase 3 (analyst investigation workflow / Gold triage and UI integration) using the frozen Phase 2 alert baseline.
 
 ## Verification Limitations
 
