@@ -17,7 +17,7 @@ Prioritize understandable implementation and small steps.
 
 ## Current Objective
 
-Summarize rule-development evaluation results (`2019-01-15` through `2019-01-28`) in `pipelines/04_monitoring_rules.ipynb` after the 14-day initial-history warm-up.
+Evaluate frozen monitoring rules (`ruleset-v1.0-frozen`) on the January 29–February 11, 2019 holdout period using the separate fraud labels (`pipelines/05_rule_evaluation.ipynb`), keeping labels outside monitoring inputs and Gold alerts.
 
 ## Development Workflow
 
@@ -56,6 +56,7 @@ explain → implement → run → inspect → document → commit.
 - pipelines/02_silver_transactions.ipynb
 - pipelines/03_historical_features.ipynb
 - pipelines/04_monitoring_rules.ipynb
+- pipelines/05_rule_evaluation.ipynb
 - pipelines/historical_features.py
 - tests/04_monitoring_rules_tests.ipynb
 
@@ -83,16 +84,24 @@ The assessment filename above reflects the existing repository spelling.
 - **Historical Features, Monitoring Rules & Gold Persistence (`2019-01-01` through `2019-01-28` & Synthetic Suites)**:
   - Confirmed in Databricks on the initial `2019-01-01` batch (`2,414` transactions): `21` flagged alerts (`1` velocity, `20` unusual amount, `0` repeated similar) and all synthetic historical-feature and monitoring-rule tests passed.
   - Confirmed in Databricks across the released `2019-01-01` through `2019-01-28` batches (`28` batches, `47,875` transactions): `2,719` saved alerts verified in `workspace.sentinel_gold.alerts`.
+  - Confirmed in Databricks for the `rule_development` period (`2019-01-15` through `2019-01-28`):
+    - Evaluated transactions: `23,731`
+    - Flagged transactions: `1,376` (`5.8%`)
+    - Rule matches: `25` velocity (`RULE_01_CARD_VELOCITY_1H`), `1,356` unusual amount (`RULE_02_UNUSUAL_AMOUNT_14D`), `0` repeated similar payments (`RULE_03_REPEATED_SIMILAR_MERCHANT_1H`)
+    - Multi-rule transactions: `5`
 
-### Local Checks vs. Pending Databricks Execution (Rule-Development Summary Cell)
+### Local Checks vs. Pending Databricks Execution (Frozen Thresholds, Evaluation Release Option & Evaluation Notebook)
 - **Implemented & Reviewed Locally**:
-  - Added cell `#a9b0c1d2` to `pipelines/04_monitoring_rules.ipynb` to filter `evaluated_df` to `2019-01-15` through `2019-01-28` (`rule_development` period) and display evaluated transaction count, flagged count and percentage, matches per rule, and transactions matching multiple rules (excluding fraud labels and preserving all existing rules and Gold outputs).
-  - **Local Structural & Syntax Check (Passed)**: Validated `.ipynb` JSON structure, unique cell IDs, empty outputs, and Python AST compilation across `pipelines/04_monitoring_rules.ipynb`.
+  - Froze existing monitoring thresholds and versions in `pipelines/04_monitoring_rules.ipynb` and `tests/04_monitoring_rules_tests.ipynb` (`ACTIVE_RULESET_VERSION = "ruleset-v1.0-frozen"`, rule versions `v1.0-frozen`, keeping `RULE_01_MIN_PRIOR_CARD_TXNS_1H = 3`, `RULE_02_MIN_PRIOR_CARD_TXNS_14D = 5`, `RULE_02_AMOUNT_MULTIPLIER = Decimal("3.00")`, `RULE_03_MIN_SIMILAR_MERCHANT_TXNS_1H = 2`, `RULE_03_AMOUNT_TOLERANCE_PCT = Decimal("0.10")`).
+  - Added explicit `RELEASE_EVALUATION_BATCHES = False` (default disabled) in `scripts/03_release_replay.ipynb` to allow releasing January 29–February 11, 2019 (`42` total batches, `71,934` transactions) only when deliberately enabled.
+  - Updated manifest checks in `pipelines/01_bronze_transactions.ipynb` so evaluation dates (`>= 2019-01-29`) are accepted only when deliberately released into `replay_landing`.
+  - Created `pipelines/05_rule_evaluation.ipynb` to compare frozen-rule alerts (`workspace.sentinel_gold.alerts`) against separate fraud labels (`/Volumes/workspace/sentinel_evaluation/evaluation_labels/replay_v1`) for January 29–February 11, 2019 only, reporting `TP`, `FP`, `FN`, `TN`, `precision`, and `recall` (with safe zero-denominator handling) while keeping labels outside monitoring inputs and Gold alerts.
+  - **Local Structural & Syntax Check (Passed)**: Validated `.ipynb` JSON structure, unique cell IDs, empty outputs, and Python AST compilation across all modified and new notebooks.
 - **Pending Databricks Execution**:
-  - Execution of the new January 15–28 summary cell (`#a9b0c1d2`) in `pipelines/04_monitoring_rules.ipynb` is **pending**.
+  - Releasing January 29–February 11 (`RELEASE_EVALUATION_BATCHES = True`), ingesting and running frozen rules, and executing `pipelines/05_rule_evaluation.ipynb` in Databricks are **pending**.
 
 ### Remaining Planned Work
-1. Run cell `#a9b0c1d2` in `pipelines/04_monitoring_rules.ipynb` in Databricks and inspect the January 15–28 summary metrics.
+1. Set `RELEASE_EVALUATION_BATCHES = True` in `scripts/03_release_replay.ipynb`, run the release and processing pipeline through `pipelines/04_monitoring_rules.ipynb`, and run `pipelines/05_rule_evaluation.ipynb` in Databricks.
 
 ## Established Decisions
 
