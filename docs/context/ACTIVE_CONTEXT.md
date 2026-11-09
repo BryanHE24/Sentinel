@@ -17,7 +17,7 @@ Prioritize understandable implementation and small steps.
 
 ## Current Objective
 
-Phase 2 is **complete and verified**. The frozen monitoring ruleset (`ruleset-v1.0-frozen`) has been evaluated on the January 29–February 11, 2019 holdout period (`24,059` transactions) as a prototype baseline with thresholds kept unchanged.
+Phase 2 is **complete and verified**. Plan and build the smallest Phase 3 UI step (`docs/planning/IMPLEMENTATION_PLAN-phase-3-ui.md`): an alert list with filters, an alert detail view with transaction history and rule evidence, and a clear path to `workspace.sentinel_gold.alerts` that explicitly distinguishes mock preview data from connected Databricks SQL data.
 
 ## Development Workflow
 
@@ -101,11 +101,25 @@ The assessment filename above reflects the existing repository spelling.
 
 ### Local Checks vs. Pending Databricks Execution (Refactored `02_silver_transactions` & Test Suite)
 - **Implemented & Reviewed Locally**:
-  - Refactored `pipelines/02_silver_transactions.ipynb` (`16` cells, `#a1b2c3d4`–`#d6e7f8a9`) into a beginner-friendly 7-step flow (`read → convert types → validate → classify duplicates → split outputs → save → basic verification`) with short cells and Markdown explanations with small examples.
-  - Moved the 24-row synthetic fixture tests, rescued-data checks, and detailed `exceptAll` read-back verification into `tests/02_silver_transactions_tests.ipynb`.
-  - Preserved all schemas, validation reasons, duplicate policies, row accounting, and full-snapshot overwrite behavior without introducing AST loaders or heavy helper modules.
+  - Updated `pipelines/02_silver_transactions.ipynb` (`20` cells, `#a1b2c3d4`–`#b0c1d2e3`) into a clear step-by-step learning progression (`read → normalize & convert types → build business signature → validate fields → count & rank duplicates → route dispositions → split outputs → save → basic verification`) with compact intermediate `display()` summaries and masked card numbers (`****1234`) in sample rows.
+  - Replaced dynamic column introspection with an explicit 21-column `BUSINESS_SIGNATURE_COLUMNS` list serialized via `F.to_json(F.struct(*signature_fields), {"ignoreNullFields": "false"})` without a `"__NULL__"` sentinel string.
+  - Kept the synthetic fixture tests (`26` rows spanning all 21 `BUSINESS_SIGNATURE_COLUMNS`, including a test case proving `NULL` and literal `"__NULL__"` remain distinct), rescued-data checks, and detailed two-way `exceptAll` read-back verification in `tests/02_silver_transactions_tests.ipynb`.
+  - Preserved all schemas, precision checks, validation reasons, duplicate policies, row accounting, and full-snapshot overwrite behavior without introducing AST loaders or hidden helper modules.
 - **Pending Databricks Execution**:
-  - Execution of the refactored `pipelines/02_silver_transactions.ipynb` and `tests/02_silver_transactions_tests.ipynb` in Databricks to confirm identical before/after table outputs is **pending**.
+  - Execution of the updated `pipelines/02_silver_transactions.ipynb` and `tests/02_silver_transactions_tests.ipynb` in Databricks to confirm identical before/after table outputs (`exceptAll == 0` in both directions) is **pending**.
+
+## Phase 3 Status (Investigation UI & API)
+
+### Step 3A — Read-Only Alert & History Backend Endpoints (`app/backend/sql.js`, `app/backend/server.js`)
+- **Implemented & Verified Locally**:
+  - Added reusable parameterized `executeSqlStatement` (`DBSQLClient` + `DBSQLParameter`) in `app/backend/sql.js` keeping OAuth credentials strictly server-side.
+  - Added `GET /api/alerts` (reads `workspace.sentinel_gold.alerts` with validated `ruleId` / `MULTI_RULE`, `startDate`, `endDate`, `search`, and `limit` capped at `200`, default `50`).
+  - Added `GET /api/alerts/:alertId/history` (validates 64-hex `alertId`, reads the alert from `workspace.sentinel_gold.alerts`, and queries `workspace.sentinel_silver.transactions` for the same `cc_num` with strictly earlier `event_time < CAST(:alertEventTime AS TIMESTAMP_NTZ)`, `limit` capped at `100`, default `25`).
+  - Preserved exact decimal strings (`CAST(CAST(... AS DECIMAL(18, 2)) AS STRING)`) and timezone-unspecified timestamp strings (`DATE_FORMAT(event_time, 'yyyy-MM-dd HH:mm:ss')`) in SQL projections and JSON serialization; excluded fraud labels completely.
+  - Added safe client error responses (`400` for invalid parameters, `404` for unknown alert IDs, `503` for missing config or SQL execution failure) while logging diagnostic details server-side.
+  - **Local Checks Passed**: `node --check` syntax validation on `app/backend/sql.js` and `app/backend/server.js`, plus unit assertions covering filter validation, limit capping, invalid-input `400` errors, decimal/timestamp string preservation, and `event_time < alert.event_time` SQL generation.
+- **Pending Live Databricks Connection**:
+  - Executing `GET /api/alerts` and `GET /api/alerts/:alertId/history` against the live Databricks SQL Warehouse (`workspace.sentinel_gold.alerts` and `workspace.sentinel_silver.transactions`) requires deploying or running with live Databricks OAuth credentials and `SELECT` privileges on both tables.
 
 ## Established Decisions
 
@@ -135,7 +149,7 @@ The assessment filename above reflects the existing repository spelling.
 
 ## Next Steps
 
-1. Proceed to Phase 3 (analyst investigation workflow / Gold triage and UI integration) using the frozen Phase 2 alert baseline.
+1. Proceed to Step 3B & Step 3C in `docs/planning/IMPLEMENTATION_PLAN-phase-3-ui.md`: implement frontend types, realistic mock preview fixtures, and the React + TypeScript investigation workspace (`app/frontend/src/`).
 
 ## Verification Limitations
 
