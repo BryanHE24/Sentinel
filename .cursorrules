@@ -12,7 +12,8 @@ Before any task, read these files:
 1. .aceconfig - Core rules and configuration
 2. .ace/roles/roles.md - Available roles and their responsibilities
 3. docs/context/ACTIVE_CONTEXT.md - Current session state
-4. docs/rca/regression-guards.yaml - Protected files and invariants
+4. docs/context/PROJECT_CONTEXT.md - Developer profile and persistent project constraints
+5. docs/rca/regression-guards.yaml - Protected files and invariants
 
 ## Core Rules
 
@@ -27,11 +28,13 @@ Before any task, read these files:
 9. Atomic commits with clear, descriptive messages
 10. No code generation without reading existing code first
 11. Check regression guards before modifying any guarded file
-12. Every issue requires RCA with regression prevention
+12. Every Medium-or-higher issue requires RCA with regression prevention
+13. Write PySpark at Associate level (.ace/standards/pyspark-associate-level.md): simple, explainable, no clever constructs
 
 ## Standards
 
 When writing code, follow:
+- .ace/standards/pyspark-associate-level.md - PySpark style for this project (read first, overrides clever code)
 - .ace/standards/coding.md - Code quality rules
 - .ace/standards/security.md - Security requirements (CRITICAL)
 - .ace/standards/architecture.md - Design patterns
@@ -53,7 +56,7 @@ CLI via the `--pack` flag. The scaffolder keeps only the selected pack under
 to `.ace/packs/<name>/.aceconfig-ext`. With no `--pack`, `includes:` is `[]`.
 
 1. **Scientific Expansion Pack**: Enables the **Data Scientist**, **AI Expert**, and **Scientific Editor** roles. Install using: `npx create-ace-framework my-project --pack scientific`.
-2. **AI Research Expansion Pack**: Enables the **AI Researcher** and **MLOps Engineer** roles with 98+ AI engineering skills. Install using: `npx create-ace-framework my-project --pack ai-research`.
+2. **AI Research Expansion Pack**: Enables the **AI Researcher** and **MLOps Engineer** roles with 98+ AI engineering skills. Install using: `npx create-ace-framework my-project‚ --pack ai-research`.
 
 Packs are installed only at scaffold time. Do not run any other install command
 to add them; if a pack is missing, re-scaffold or copy `.ace/packs/<name>/` in
@@ -82,7 +85,7 @@ For specialized tasks, apply relevant skill:
 
 ## Session Protocol
 
-Start: "Read .aceconfig, .ace/roles/roles.md, and ACTIVE_CONTEXT.md"
+Start: "Read .aceconfig, .ace/roles/roles.md, docs/context/PROJECT_CONTEXT.md, and ACTIVE_CONTEXT.md"
 End: "Update ACTIVE_CONTEXT.md with completed work and next steps"
 
 ## Response Format
@@ -91,4 +94,3 @@ End: "Update ACTIVE_CONTEXT.md with completed work and next steps"
 - Reference relevant standards/ADRs
 - Follow established code patterns in docs/context/system_patterns.md
 - Update ACTIVE_CONTEXT.md when significant progress is made
-

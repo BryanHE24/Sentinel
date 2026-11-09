@@ -10,6 +10,7 @@ includes: []
 # Entry point for AI agents - files always loaded
 entry:
   standards:
+    - .ace/standards/pyspark-associate-level.md
     - .ace/standards/coding.md
     - .ace/standards/security.md
   roles: .ace/roles/roles.md
@@ -22,15 +23,23 @@ core_rules:
   - "Update ACTIVE_CONTEXT.md after each session"
   - "Verify against .ace/standards/ before completing any task"
   - "Generate IMPLEMENTATION_PLAN.md before writing code"
+  - "Write PySpark at Associate level: follow .ace/standards/pyspark-associate-level.md; if a requirement seems to need advanced code, propose the simpler version and ask first"
   - "Every task follows BMAD: Analyze → Discuss → Plan → Execute → Verify"
   - "Create ADR for any significant architectural decision"
   - "Atomic commits with clear, descriptive messages"
   - "No code generation without reading existing code first"
   - "Check regression guards before modifying any guarded file"
-  - "Every issue requires RCA with regression prevention"
+  - "Every Medium-or-higher issue requires RCA with regression prevention"
 
 # Task-to-skill mapping (auto-load relevant skill)
+# Trimmed for Sentinel: removed generic keywords (feature, state, model, agent, mcp,
+# performance, accessibility ...) that also appear in normal Databricks vocabulary and
+# loaded ML, React or agent skills that push complex code.
 skill_triggers:
+  pyspark: .ace/standards/pyspark-associate-level.md
+  spark: .ace/standards/pyspark-associate-level.md
+  notebook: .ace/standards/pyspark-associate-level.md
+  databricks: .ace/standards/pyspark-associate-level.md
   database: .ace/skills/database-operations/SKILL.md
   api: .ace/skills/api-design/SKILL.md
   testing: .ace/skills/testing-strategy/SKILL.md
@@ -43,19 +52,10 @@ skill_triggers:
   incident: .ace/skills/root-cause-analysis/SKILL.md
   pipeline: .ace/skills/data-pipeline-design/SKILL.md
   prompt: .ace/skills/prompt-engineering/SKILL.md
-  model: .ace/skills/model-evaluation/SKILL.md
-  feature: .ace/skills/feature-engineering/SKILL.md
   security: .ace/skills/security-audit/SKILL.md
-  performance: .ace/skills/performance-optimization/SKILL.md
-  accessibility: .ace/skills/accessibility-audit/SKILL.md
   cicd: .ace/skills/ci-cd-pipeline/SKILL.md
   error: .ace/skills/error-handling/SKILL.md
   documentation: .ace/skills/documentation-generation/SKILL.md
-  state: .ace/skills/state-management/SKILL.md
-  agent: .ace/skills/agent-design/SKILL.md
-  a2a: .ace/skills/a2a-communication/SKILL.md
-  mcp: .ace/skills/mcp-implementation/SKILL.md
-  packet: .ace/skills/phantom-link/SKILL.md
   azure: .ace/skills/az-devops-setup/SKILL.md
   ado: .ace/skills/az-devops-setup/SKILL.md
   workitem: .ace/skills/az-create-work-item/SKILL.md

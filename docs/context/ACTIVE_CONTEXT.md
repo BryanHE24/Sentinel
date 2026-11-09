@@ -2,7 +2,7 @@
 
 ## Session Metadata
 
-- Last updated: 2026-11-06
+- Last updated: 2026-11-09
 - Active role: QA Engineer
 - Mode: VERIFICATION
 
@@ -58,6 +58,7 @@ explain → implement → run → inspect → document → commit.
 - pipelines/04_monitoring_rules.ipynb
 - pipelines/05_rule_evaluation.ipynb
 - pipelines/historical_features.py
+- tests/00_refactor_equivalence_check.ipynb
 - tests/02_silver_transactions_tests.ipynb
 - tests/04_monitoring_rules_tests.ipynb
 
@@ -99,14 +100,16 @@ The assessment filename above reflects the existing repository spelling.
   - Recall: `45.31%` (`0.4531`)
   - **Baseline Assessment**: This frozen ruleset (`ruleset-v1.0-frozen`) serves as a simple prototype baseline with substantial false alarms (`1,307` false positives) and missed fraud (`140` false negatives), motivating analyst review workflows and AI/triage enrichment while keeping rule thresholds unchanged.
 
-### Local Checks vs. Pending Databricks Execution (Refactored `02_silver_transactions` & Test Suite)
+### Local Checks vs. Pending Databricks Execution (Associate-Level PySpark Refactor)
 - **Implemented & Reviewed Locally**:
-  - Updated `pipelines/02_silver_transactions.ipynb` (`20` cells, `#a1b2c3d4`–`#b0c1d2e3`) into a clear step-by-step learning progression (`read → normalize & convert types → build business signature → validate fields → count & rank duplicates → route dispositions → split outputs → save → basic verification`) with compact intermediate `display()` summaries and masked card numbers (`****1234`) in sample rows.
-  - Replaced dynamic column introspection with an explicit 21-column `BUSINESS_SIGNATURE_COLUMNS` list serialized via `F.to_json(F.struct(*signature_fields), {"ignoreNullFields": "false"})` without a `"__NULL__"` sentinel string.
-  - Kept the synthetic fixture tests (`26` rows spanning all 21 `BUSINESS_SIGNATURE_COLUMNS`, including a test case proving `NULL` and literal `"__NULL__"` remain distinct), rescued-data checks, and detailed two-way `exceptAll` read-back verification in `tests/02_silver_transactions_tests.ipynb`.
-  - Preserved all schemas, precision checks, validation reasons, duplicate policies, row accounting, and full-snapshot overwrite behavior without introducing AST loaders or hidden helper modules.
+  - Added `.ace/standards/pyspark-associate-level.md` and `docs/REFACTOR_GUIDE.md`, and updated `.ace/standards/coding.md`, `.aceconfig`, `.aiconfig`, `.cursorrules`, and `docs/context/PROJECT_CONTEXT.md` (treating line/row/check counts as preferences, removing noisy skill triggers, and banning hidden helper modules or copied pipeline logic in tests).
+  - Refactored `pipelines/02_silver_transactions.ipynb` (`15` cells) to use `clean_and_check_fields`, `find_duplicates`, `route_rows`, `F.array_compact`, `F.collect_set(F.struct(*BUSINESS_COLUMNS))` window duplicate detection, the simpler numeric amount policy (`AMOUNT_PATTERN = r"^-?[0-9]+(\.[0-9]{1,2})?$"` + `try_cast(amt AS DECIMAL(18, 2))`, merging `unparseable_or_out_of_range_amount` and `amount_precision_changed` into `invalid_amount`), and a 19-row in-notebook self-test covering all required fields, multiple errors on a single row, and conflicting duplicates with an invalid occurrence.
+  - Refactored `pipelines/03_historical_features.ipynb` (`9` cells) to compute features via a left self-join (`prev_event_time < event_time` and `>= event_time - INTERVAL ...`) and conditional `F.count(F.when(...))`, run an in-notebook self-test, and persist `workspace.sentinel_gold.transaction_features`.
+  - Refactored `pipelines/04_monitoring_rules.ipynb` (`13` cells) to read `workspace.sentinel_gold.transaction_features`, use `F.array_compact`, struct field projection (`rule_evidence.rule_id`), and `F.format_string`, run an in-notebook threshold self-test (below/at/above each rule), accurately document `alert_id` hash identification vs. `overwrite` + uniqueness checks, and preserve the Jan 15–28 summary cell.
+  - Added `tests/00_refactor_equivalence_check.ipynb` (`3` cells) to verify two-way `exceptAll == 0` equivalence against `*_legacy` snapshots across `workspace.sentinel_silver.transactions` (all columns), `workspace.sentinel_silver.quarantine` (all non-reason columns, plus side-by-side `validation_reasons` display), and `workspace.sentinel_gold.alerts` (all columns).
+  - Preserved `pipelines/historical_features.py`, `tests/02_silver_transactions_tests.ipynb`, and `tests/04_monitoring_rules_tests.ipynb` until Databricks validation passes.
 - **Pending Databricks Execution**:
-  - Execution of the updated `pipelines/02_silver_transactions.ipynb` and `tests/02_silver_transactions_tests.ipynb` in Databricks to confirm identical before/after table outputs (`exceptAll == 0` in both directions) is **pending**.
+  - Creating `*_legacy` snapshot tables in Databricks SQL, executing `02_silver_transactions.ipynb → 03_historical_features.ipynb → 04_monitoring_rules.ipynb`, running `tests/00_refactor_equivalence_check.ipynb` and `pipelines/05_rule_evaluation.ipynb`, and updating the existing Lakeflow Job to `01_bronze_transactions → 02_silver_transactions → 03_historical_features → 04_monitoring_rules` are **pending**.
 
 ## Phase 3 Status (Investigation UI & API)
 
@@ -127,12 +130,12 @@ The assessment filename above reflects the existing repository spelling.
 - Preserve cc_num as a string.
 - Normalize blank required identifiers (`trans_num`, `cc_num`, `merchant`) to `NULL`.
 - Use trans_date_trans_time parsed as TIMESTAMP_NTZ for event ordering.
-- Convert `amt` to `DECIMAL(18,2)`, detecting missing, unparseable/out-of-range, non-positive, and precision-changing values.
+- Convert `amt` to `DECIMAL(18,2)` after checking `AMOUNT_PATTERN = r"^-?[0-9]+(\.[0-9]{1,2})?$"` (ordinary numeric text with at most two decimal places), recording `missing_amount`, `invalid_amount` (merging malformed/out-of-range and >2-decimal precision changes; rejecting non-ordinary numeric strings like `+5`, `.50`, `1e3`), and `non_positive_amount`.
 - Preserve source references and raw values (including `_rescued_data`) needed for investigation.
 - Quarantine any row with non-blank `_rescued_data` using validation reason `unexpected_rescued_data`; `NULL` and whitespace-only `_rescued_data` do not trigger this reason.
-- Classify duplicate `trans_num` values across the entire Bronze input, distinguishing identical business records from conflicting records without letting invalid rows hide conflicts or arbitrarily selecting a winner.
+- Classify duplicate `trans_num` values across the entire Bronze input using `F.collect_set(F.struct(*BUSINESS_COLUMNS))` over a `trans_num` window, distinguishing identical business records from conflicting records without letting invalid rows hide conflicts or arbitrarily selecting a winner.
 - Account for every input row exactly once.
-- Persist accepted transactions to `workspace.sentinel_silver.transactions` (excluding personal attributes) and all non-accepted records (`quarantined` and `duplicate_identical`) to `workspace.sentinel_silver.quarantine` using full-snapshot `overwrite` mode.
+- Persist accepted transactions to `workspace.sentinel_silver.transactions` (excluding personal attributes), non-accepted records (`quarantined` and `duplicate_identical`) to `workspace.sentinel_silver.quarantine`, historical features to `workspace.sentinel_gold.transaction_features`, and flagged alerts to `workspace.sentinel_gold.alerts` using full-snapshot `overwrite` mode.
 - The source timezone is unspecified.
 - Preserve unix_time in Bronze and quarantine; its discrepancy remains unexplained.
 - Exclude fraud labels from monitoring features, rules, and AI inputs.
@@ -140,16 +143,17 @@ The assessment filename above reflects the existing repository spelling.
 
 ## Implementation Requirements
 
-- Prefer straightforward SQL/PySpark that a learner can explain.
+- Follow `.ace/standards/pyspark-associate-level.md` and `docs/context/PROJECT_CONTEXT.md`: write Associate-level SQL/PySpark that the developer can explain, treating line/row/check counts as preferences rather than rigid rules.
 - Use short cells with one clear purpose; Markdown explains purpose, reasoning, and a small example.
-- Keep basic count and uniqueness checks in pipeline notebooks; keep synthetic tests and detailed verification in `tests/`.
-- Avoid unnecessary abstractions, repeated computation, and checks; do not simplify by hiding large code blocks in helper modules.
+- Keep in-notebook self-tests calling the actual transformation functions and basic count/uniqueness checks in pipeline notebooks; preserve legacy test notebooks and `pipelines/historical_features.py` until Databricks equivalence verification passes.
+- Never hide complexity in large helper modules or copy pipeline transformation logic into separate test notebooks.
 - Preserve essential validation, earlier-only history, one row per transaction ID, and alert evidence.
 - Distinguish proposed checks from executed checks.
 
 ## Next Steps
 
-1. Proceed to Step 3B & Step 3C in `docs/planning/IMPLEMENTATION_PLAN-phase-3-ui.md`: implement frontend types, realistic mock preview fixtures, and the React + TypeScript investigation workspace (`app/frontend/src/`).
+1. Snapshot `transactions_legacy`, `quarantine_legacy`, and `alerts_legacy` in Databricks SQL, execute `02_silver_transactions.ipynb → 03_historical_features.ipynb → 04_monitoring_rules.ipynb`, run `tests/00_refactor_equivalence_check.ipynb` and `pipelines/05_rule_evaluation.ipynb`, and then add `03_historical_features` to the existing Lakeflow Job (`01 → 02 → 03 → 04`).
+2. After Databricks pipeline verification passes, resume Phase 3 UI work (`docs/planning/IMPLEMENTATION_PLAN-phase-3-ui.md` Steps 3B & 3C).
 
 ## Verification Limitations
 
