@@ -3,8 +3,8 @@
 ## Session Metadata
 
 - Last updated: 2026-11-09
-- Active role: QA Engineer
-- Mode: VERIFICATION
+- Active role: Developer
+- Mode: EXECUTION
 
 ## Project
 
@@ -100,16 +100,11 @@ The assessment filename above reflects the existing repository spelling.
   - Recall: `45.31%` (`0.4531`)
   - **Baseline Assessment**: This frozen ruleset (`ruleset-v1.0-frozen`) serves as a simple prototype baseline with substantial false alarms (`1,307` false positives) and missed fraud (`140` false negatives), motivating analyst review workflows and AI/triage enrichment while keeping rule thresholds unchanged.
 
-### Local Checks vs. Pending Databricks Execution (Associate-Level PySpark Refactor)
-- **Implemented & Reviewed Locally**:
-  - Added `.ace/standards/pyspark-associate-level.md` and `docs/REFACTOR_GUIDE.md`, and updated `.ace/standards/coding.md`, `.aceconfig`, `.aiconfig`, `.cursorrules`, and `docs/context/PROJECT_CONTEXT.md` (treating line/row/check counts as preferences, removing noisy skill triggers, and banning hidden helper modules or copied pipeline logic in tests).
-  - Refactored `pipelines/02_silver_transactions.ipynb` (`15` cells) to use `clean_and_check_fields`, `find_duplicates`, `route_rows`, `F.array_compact`, `F.collect_set(F.struct(*BUSINESS_COLUMNS))` window duplicate detection, the simpler numeric amount policy (`AMOUNT_PATTERN = r"^-?[0-9]+(\.[0-9]{1,2})?$"` + `try_cast(amt AS DECIMAL(18, 2))`, merging `unparseable_or_out_of_range_amount` and `amount_precision_changed` into `invalid_amount`), and a 19-row in-notebook self-test covering all required fields, multiple errors on a single row, and conflicting duplicates with an invalid occurrence.
-  - Refactored `pipelines/03_historical_features.ipynb` (`9` cells) to compute features via a left self-join (`prev_event_time < event_time` and `>= event_time - INTERVAL ...`) and conditional `F.count(F.when(...))`, run an in-notebook self-test, and persist `workspace.sentinel_gold.transaction_features`.
-  - Refactored `pipelines/04_monitoring_rules.ipynb` (`13` cells) to read `workspace.sentinel_gold.transaction_features`, use `F.array_compact`, struct field projection (`rule_evidence.rule_id`), and `F.format_string`, run an in-notebook threshold self-test (below/at/above each rule), accurately document `alert_id` hash identification vs. `overwrite` + uniqueness checks, and preserve the Jan 15–28 summary cell.
-  - Added `tests/00_refactor_equivalence_check.ipynb` (`3` cells) to verify two-way `exceptAll == 0` equivalence against `*_legacy` snapshots across `workspace.sentinel_silver.transactions` (all columns), `workspace.sentinel_silver.quarantine` (all non-reason columns, plus side-by-side `validation_reasons` display), and `workspace.sentinel_gold.alerts` (all columns).
-  - Preserved `pipelines/historical_features.py`, `tests/02_silver_transactions_tests.ipynb`, and `tests/04_monitoring_rules_tests.ipynb` until Databricks validation passes.
-- **Pending Databricks Execution**:
-  - Creating `*_legacy` snapshot tables in Databricks SQL, executing `02_silver_transactions.ipynb → 03_historical_features.ipynb → 04_monitoring_rules.ipynb`, running `tests/00_refactor_equivalence_check.ipynb` and `pipelines/05_rule_evaluation.ipynb`, and updating the existing Lakeflow Job to `01_bronze_transactions → 02_silver_transactions → 03_historical_features → 04_monitoring_rules` are **pending**.
+### Associate-Level PySpark Refactor & 4-Task Databricks Lakeflow Job (Verified in Databricks)
+- **Executed and Confirmed in Databricks**:
+  - Refactored `pipelines/02_silver_transactions.ipynb`, `pipelines/03_historical_features.ipynb` (persisting `workspace.sentinel_gold.transaction_features`), and `pipelines/04_monitoring_rules.ipynb` to Associate-level PySpark per `.ace/standards/pyspark-associate-level.md` and `docs/REFACTOR_GUIDE.md`.
+  - Passed two-way `exceptAll == 0` equivalence verification in `tests/00_refactor_equivalence_check.ipynb` across `workspace.sentinel_silver.transactions`, `workspace.sentinel_silver.quarantine` (all non-reason columns), and `workspace.sentinel_gold.alerts`.
+  - Updated and executed the **four-task Databricks Lakeflow Job** (`01_bronze_transactions → 02_silver_transactions → 03_historical_features → 04_monitoring_rules`), which **succeeded** end-to-end.
 
 ## Phase 3 Status (Investigation UI & API)
 
@@ -152,8 +147,8 @@ The assessment filename above reflects the existing repository spelling.
 
 ## Next Steps
 
-1. Snapshot `transactions_legacy`, `quarantine_legacy`, and `alerts_legacy` in Databricks SQL, execute `02_silver_transactions.ipynb → 03_historical_features.ipynb → 04_monitoring_rules.ipynb`, run `tests/00_refactor_equivalence_check.ipynb` and `pipelines/05_rule_evaluation.ipynb`, and then add `03_historical_features` to the existing Lakeflow Job (`01 → 02 → 03 → 04`).
-2. After Databricks pipeline verification passes, resume Phase 3 UI work (`docs/planning/IMPLEMENTATION_PLAN-phase-3-ui.md` Steps 3B & 3C).
+1. Test `GET /api/alerts` and `GET /api/alerts/:alertId/history` against the live Databricks SQL Warehouse (`workspace.sentinel_gold.alerts` and `workspace.sentinel_silver.transactions`).
+2. Proceed to Step 3B & Step 3C in `docs/planning/IMPLEMENTATION_PLAN-phase-3-ui.md`: implement frontend types, realistic mock preview fixtures, and the React + TypeScript investigation workspace (`app/frontend/src/`).
 
 ## Verification Limitations
 

@@ -3,7 +3,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { checkAiConnection } from "./ai.js";
-import { checkSqlConnection } from "./sql.js";
+import {
+  checkSqlConnection,
+  fetchAlertHistory,
+  fetchGoldAlerts,
+  GOLD_ALERTS_TABLE,
+  SILVER_TRANSACTIONS_TABLE
+} from "./sql.js";
 
 const app = express();
 
@@ -13,8 +19,32 @@ const frontendDirectory = path.resolve(
   "../frontend/dist"
 );
 
+function handleSqlRouteError(routeLabel, error, response) {
+  if (error?.statusCode === 400) {
+    return response.status(400).json({
+      status: "invalid_request",
+      message: error.message
+    });
+  }
+
+  console.error(`${routeLabel} failed:`, error);
+
+  const isConfigurationError =
+    typeof error?.message === "string" &&
+    error.message.startsWith("Missing configuration:");
+
+  return response.status(503).json({
+    status: "unavailable",
+    errorType: error?.name ?? "Error",
+    errorCode: String(error?.code ?? "UNKNOWN"),
+    message: isConfigurationError
+      ? error.message
+      : "Configuration is present, but SQL authentication or query execution failed."
+  });
+}
+
 // This endpoint verifies the web server only.
-// SQL and AI connectivity will have separate checks.
+// SQL and AI connectivity have separate checks.
 app.get("/api/health", (_request, response) => {
   response.json({
     service: "sentinel",
@@ -33,22 +63,66 @@ app.get("/api/health/sql", async (_request, response) => {
       connectionCheck: rows[0].connection_check
     });
   } catch (error) {
-    console.error("SQL connectivity check failed:", error.message);
-
-    const isConfigurationError =
-      error.message.startsWith("Missing configuration:");
-
-    response.status(503).json({
-      status: "unavailable",
-      errorType: error.name,
-      errorCode: String(error.code ?? "UNKNOWN"),
-      message: isConfigurationError
-        ? error.message
-        : "Configuration is present, but SQL authentication or query execution failed."
-    });
+    handleSqlRouteError("SQL connectivity check", error, response);
   }
 });
 
+// Read-only alert list from workspace.sentinel_gold.alerts.
+app.get("/api/alerts", async (request, response) => {
+  response.set("Cache-Control", "no-store");
+
+  try {
+    const { alerts, appliedFilters } = await fetchGoldAlerts(request.query);
+
+    response.json({
+      status: "ok",
+      source: "databricks",
+      table: GOLD_ALERTS_TABLE,
+      count: alerts.length,
+      filters: appliedFilters,
+      alerts
+    });
+  } catch (error) {
+    handleSqlRouteError("GET /api/alerts", error, response);
+  }
+});
+
+// Read-only selected alert details and strictly earlier card history (event_time < alert.event_time).
+app.get("/api/alerts/:alertId/history", async (request, response) => {
+  response.set("Cache-Control", "no-store");
+
+  try {
+    const result = await fetchAlertHistory(
+      request.params.alertId,
+      request.query
+    );
+
+    if (!result) {
+      return response.status(404).json({
+        status: "not_found",
+        message: "Alert not found in workspace.sentinel_gold.alerts."
+      });
+    }
+
+    return response.json({
+      status: "ok",
+      source: "databricks",
+      alertTable: GOLD_ALERTS_TABLE,
+      historyTable: SILVER_TRANSACTIONS_TABLE,
+      historyWindow: "event_time < alert.event_time",
+      limit: result.limit,
+      alert: result.alert,
+      historyCount: result.history.length,
+      history: result.history
+    });
+  } catch (error) {
+    return handleSqlRouteError(
+      "GET /api/alerts/:alertId/history",
+      error,
+      response
+    );
+  }
+});
 
 app.post("/api/checks/ai", async (_request, response) => {
   response.set("Cache-Control", "no-store");
@@ -77,6 +151,10 @@ const port = Number(
   process.env.DATABRICKS_APP_PORT ?? process.env.PORT ?? 8000
 );
 
-app.listen(port, "0.0.0.0", () => {
-  console.log(`Sentinel is listening on port ${port}`);
-});
+if (process.env.NODE_ENV !== "test") {
+  app.listen(port, "0.0.0.0", () => {
+    console.log(`Sentinel is listening on port ${port}`);
+  });
+}
+
+export { app };
