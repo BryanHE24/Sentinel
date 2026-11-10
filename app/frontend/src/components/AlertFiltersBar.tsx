@@ -37,11 +37,7 @@ export function AlertFiltersBar({
   }
 
   return (
-    <form
-      className="filters-bar glass-panel"
-      onSubmit={handleSubmit}
-      aria-label="Alert filters"
-    >
+    <form className="filters-bar" onSubmit={handleSubmit} aria-label="Alert filters">
       <div className="filters-row">
         <label className="filter-field">
           <span className="filter-label">Rule Filter</span>
@@ -91,7 +87,7 @@ export function AlertFiltersBar({
           <span className="filter-label">Search (Txn ID, Card, Merchant)</span>
           <input
             type="search"
-            placeholder="e.g. Kirlin or last 4 digits…"
+            placeholder="Merchant, txn ID, or last 4 digits…"
             maxLength={100}
             value={draftFilters.search}
             onChange={(e) =>
@@ -101,7 +97,7 @@ export function AlertFiltersBar({
         </label>
 
         <label className="filter-field filter-field-limit">
-          <span className="filter-label">Max Results</span>
+          <span className="filter-label">Result Cap</span>
           <select
             value={draftFilters.limit}
             onChange={(e) =>
@@ -131,7 +127,7 @@ export function AlertFiltersBar({
       </div>
 
       <div className="preset-row">
-        <span className="preset-caption">Replay period shortcuts:</span>
+        <span className="preset-caption">Replay period:</span>
         {DATE_PRESETS.map((preset) => {
           const isActive =
             draftFilters.startDate === preset.startDate &&

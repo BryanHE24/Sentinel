@@ -25,10 +25,10 @@ export function AlertQueuePane({
   onRetry,
 }: AlertQueuePaneProps) {
   return (
-    <section className="pane glass-panel queue-pane" aria-label="Alert queue">
+    <section className="pane queue-pane" aria-label="Alert queue">
       <div className="pane-header">
         <div>
-          <h2>Flagged Alert Queue</h2>
+          <h2>Alert Queue</h2>
           <p className="pane-subtitle">
             Showing <strong>{alerts.length}</strong> loaded result
             {alerts.length === 1 ? "" : "s"} (API cap: {appliedLimit} rows)
@@ -39,9 +39,7 @@ export function AlertQueuePane({
       {isLoading && (
         <div className="state-box" role="status">
           <p className="state-title">Loading alerts from Databricks SQL…</p>
-          <p className="state-detail">
-            Querying <code>workspace.sentinel_gold.alerts</code>
-          </p>
+          <p className="state-detail">Fetching flagged payment records…</p>
         </div>
       )}
 
@@ -76,26 +74,22 @@ export function AlertQueuePane({
                   onClick={() => onSelectAlert(alert.alert_id)}
                 >
                   <div className="alert-card-top">
-                    <span className="alert-time">{alert.event_time}</span>
+                    <span className="alert-merchant">{alert.merchant}</span>
                     <span className="alert-amount">
                       {formatCurrency(alert.amount)}
                     </span>
                   </div>
 
                   <div className="alert-card-middle">
-                    <span className="alert-merchant">{alert.merchant}</span>
+                    <span className="alert-time">{alert.event_time}</span>
                     {alert.category && (
                       <span className="category-tag">{alert.category}</span>
                     )}
                   </div>
 
                   <div className="alert-card-meta">
-                    <span>
-                      Txn: <code>{alert.trans_num}</code>
-                    </span>
-                    <span>
-                      Card: <code>{maskCardNumber(alert.cc_num)}</code>
-                    </span>
+                    <span>Card {maskCardNumber(alert.cc_num)}</span>
+                    <span>Batch {alert.replay_batch}</span>
                   </div>
 
                   <div className="rule-badge-row">

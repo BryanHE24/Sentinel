@@ -19,6 +19,44 @@ const DEFAULT_FILTERS: AlertQueryFilters = {
   limit: 50,
 };
 
+const SIDEBAR_RULE_VIEWS: Array<{ label: string; ruleId: string }> = [
+  { label: "All Flagged Alerts", ruleId: "" },
+  { label: "Rule 1 · Velocity (1h)", ruleId: "RULE_01_CARD_VELOCITY_1H" },
+  { label: "Rule 2 · Unusual Amt (14d)", ruleId: "RULE_02_UNUSUAL_AMOUNT_14D" },
+  {
+    label: "Rule 3 · Similar Merch (1h)",
+    ruleId: "RULE_03_REPEATED_SIMILAR_MERCHANT_1H",
+  },
+  { label: "Multi-Rule (2+)", ruleId: "MULTI_RULE" },
+];
+
+const SIDEBAR_REPLAY_WINDOWS: Array<{
+  label: string;
+  range: string;
+  startDate: string;
+  endDate: string;
+}> = [
+  { label: "All Replay Dates", range: "Jan 1–Feb 11", startDate: "", endDate: "" },
+  {
+    label: "Initial History",
+    range: "Jan 1–14",
+    startDate: "2019-01-01",
+    endDate: "2019-01-14",
+  },
+  {
+    label: "Rule Development",
+    range: "Jan 15–28",
+    startDate: "2019-01-15",
+    endDate: "2019-01-28",
+  },
+  {
+    label: "Holdout Evaluation",
+    range: "Jan 29–Feb 11",
+    startDate: "2019-01-29",
+    endDate: "2019-02-11",
+  },
+];
+
 function buildAlertsUrl(filters: AlertQueryFilters): string {
   const params = new URLSearchParams();
   if (filters.ruleId) {
@@ -217,6 +255,18 @@ export function App() {
     setAppliedFilters(DEFAULT_FILTERS);
   }
 
+  function handleQuickRuleSelect(ruleId: string) {
+    const next = { ...draftFilters, ruleId };
+    setDraftFilters(next);
+    setAppliedFilters({ ...appliedFilters, ruleId });
+  }
+
+  function handleQuickWindowSelect(startDate: string, endDate: string) {
+    const next = { ...draftFilters, startDate, endDate };
+    setDraftFilters(next);
+    setAppliedFilters({ ...appliedFilters, startDate, endDate });
+  }
+
   function handleSelectAlert(alertId: string) {
     if (alertId !== selectedAlertId) {
       setHistory([]);
@@ -226,81 +276,166 @@ export function App() {
   }
 
   return (
-    <div className="workspace-shell">
-      <header className="workspace-header glass-panel">
-        <div className="brand-block">
-          <div className="eyebrow-row">
-            <span className="eyebrow-pill">Sentinel · Phase 3 Investigation UI</span>
-            <span
-              className={`source-badge ${
-                alertsError ? "source-badge-error" : "source-badge-live"
-              }`}
-            >
-              {alertsError
-                ? "Databricks SQL: Connection / Query Error"
-                : "Connected: Databricks SQL (workspace.sentinel_gold.alerts)"}
-            </span>
+    <div className="app-layout">
+      {/* Narrow Sidebar */}
+      <aside className="workspace-sidebar" aria-label="Workspace views and quick filters">
+        <div className="sidebar-brand">
+          <div className="sidebar-logo-mark" aria-hidden="true">
+            S
           </div>
-          <h1>Transaction Monitoring &amp; Alert Investigation</h1>
-          <p className="header-description">
-            Inspect flagged transactions from{" "}
-            <code>workspace.sentinel_gold.alerts</code> alongside strictly earlier
-            Silver card activity (<code>event_time &lt; alert.event_time</code>).
-          </p>
-        </div>
-
-        <div className="summary-strip" aria-label="Counts in loaded results">
-          <div className="summary-pill summary-pill-accent">
-            <span className="summary-label">Loaded Alerts (cap {appliedLimit})</span>
-            <span className="summary-value">{loadedSummary.totalLoaded}</span>
-          </div>
-          <div className="summary-pill">
-            <span className="summary-label">Rule 1 Velocity (loaded)</span>
-            <span className="summary-value">{loadedSummary.velocityCount}</span>
-          </div>
-          <div className="summary-pill">
-            <span className="summary-label">Rule 2 Unusual Amt (loaded)</span>
-            <span className="summary-value">{loadedSummary.unusualAmountCount}</span>
-          </div>
-          <div className="summary-pill">
-            <span className="summary-label">Rule 3 Similar Merch (loaded)</span>
-            <span className="summary-value">{loadedSummary.similarMerchantCount}</span>
-          </div>
-          <div className="summary-pill">
-            <span className="summary-label">Multi-Rule (loaded)</span>
-            <span className="summary-value">{loadedSummary.multiRuleCount}</span>
+          <div>
+            <div className="sidebar-brand-name">Sentinel</div>
+            <div className="sidebar-brand-sub">Alert Investigation</div>
           </div>
         </div>
-      </header>
 
-      <AlertFiltersBar
-        draftFilters={draftFilters}
-        isLoading={isAlertsLoading}
-        onDraftChange={setDraftFilters}
-        onApply={handleApplyFilters}
-        onReset={handleResetFilters}
-      />
+        <div className="sidebar-group">
+          <span className="sidebar-group-title">Rule Views</span>
+          <ul className="sidebar-nav-list">
+            {SIDEBAR_RULE_VIEWS.map((view) => {
+              const isActive = appliedFilters.ruleId === view.ruleId;
+              return (
+                <li key={view.label}>
+                  <button
+                    type="button"
+                    className={`sidebar-nav-btn ${
+                      isActive ? "sidebar-nav-btn-active" : ""
+                    }`}
+                    onClick={() => handleQuickRuleSelect(view.ruleId)}
+                  >
+                    <span>{view.label}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
 
-      <main className="workspace-grid">
-        <AlertQueuePane
-          alerts={alerts}
-          appliedLimit={appliedLimit}
-          selectedAlertId={selectedAlertId}
+        <div className="sidebar-group">
+          <span className="sidebar-group-title">Replay Windows</span>
+          <ul className="sidebar-nav-list">
+            {SIDEBAR_REPLAY_WINDOWS.map((win) => {
+              const isActive =
+                appliedFilters.startDate === win.startDate &&
+                appliedFilters.endDate === win.endDate;
+              return (
+                <li key={win.label}>
+                  <button
+                    type="button"
+                    className={`sidebar-nav-btn ${
+                      isActive ? "sidebar-nav-btn-active" : ""
+                    }`}
+                    onClick={() =>
+                      handleQuickWindowSelect(win.startDate, win.endDate)
+                    }
+                  >
+                    <span>{win.label}</span>
+                    <span className="sidebar-nav-meta">{win.range}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+
+        <div className="sidebar-footer">
+          <div
+            className={`source-badge ${
+              alertsError ? "source-badge-error" : "source-badge-live"
+            }`}
+          >
+            {alertsError ? "SQL Connection Error" : "Databricks SQL Connected"}
+          </div>
+          <details className="sidebar-tech-details">
+            <summary>Data Source Tables</summary>
+            <div className="sidebar-tech-body">
+              <div>
+                Alerts: <code>workspace.sentinel_gold.alerts</code>
+              </div>
+              <div>
+                History: <code>workspace.sentinel_silver.transactions</code>
+              </div>
+            </div>
+          </details>
+        </div>
+      </aside>
+
+      {/* Main Investigation Workspace */}
+      <div className="workspace-shell">
+        <header className="workspace-header">
+          <div className="brand-block">
+            <div className="eyebrow-row">
+              <span className="eyebrow-pill">Phase 3 Investigation Workspace</span>
+              <span
+                className={`source-badge ${
+                  alertsError ? "source-badge-error" : "source-badge-live"
+                }`}
+              >
+                {alertsError
+                  ? "Databricks SQL: Connection / Query Error"
+                  : "Live: Databricks SQL"}
+              </span>
+            </div>
+            <h1>Transaction Monitoring &amp; Alert Investigation</h1>
+            <p className="header-description">
+              Review flagged card payments, plain-language rule evidence, and strictly
+              earlier card transactions before the alert time.
+            </p>
+          </div>
+
+          <div className="summary-strip" aria-label="Counts in loaded results">
+            <div className="summary-pill summary-pill-accent">
+              <span className="summary-label">Loaded Alerts (cap {appliedLimit})</span>
+              <span className="summary-value">{loadedSummary.totalLoaded}</span>
+            </div>
+            <div className="summary-pill">
+              <span className="summary-label">Rule 1 Velocity (loaded)</span>
+              <span className="summary-value">{loadedSummary.velocityCount}</span>
+            </div>
+            <div className="summary-pill">
+              <span className="summary-label">Rule 2 Unusual Amt (loaded)</span>
+              <span className="summary-value">{loadedSummary.unusualAmountCount}</span>
+            </div>
+            <div className="summary-pill">
+              <span className="summary-label">Rule 3 Similar Merch (loaded)</span>
+              <span className="summary-value">{loadedSummary.similarMerchantCount}</span>
+            </div>
+            <div className="summary-pill">
+              <span className="summary-label">Multi-Rule (loaded)</span>
+              <span className="summary-value">{loadedSummary.multiRuleCount}</span>
+            </div>
+          </div>
+        </header>
+
+        <AlertFiltersBar
+          draftFilters={draftFilters}
           isLoading={isAlertsLoading}
-          errorMessage={alertsError}
-          onSelectAlert={handleSelectAlert}
-          onRetry={() => setAlertsReloadToken((n) => n + 1)}
+          onDraftChange={setDraftFilters}
+          onApply={handleApplyFilters}
+          onReset={handleResetFilters}
         />
 
-        <AlertDetailPane
-          selectedAlert={selectedAlert}
-          history={ selectedAlertId ? history : [] }
-          historyLimit={historyLimit}
-          isHistoryLoading={isHistoryLoading}
-          historyError={historyError}
-          onRetryHistory={() => setHistoryReloadToken((n) => n + 1)}
-        />
-      </main>
+        <main className="workspace-grid">
+          <AlertQueuePane
+            alerts={alerts}
+            appliedLimit={appliedLimit}
+            selectedAlertId={selectedAlertId}
+            isLoading={isAlertsLoading}
+            errorMessage={alertsError}
+            onSelectAlert={handleSelectAlert}
+            onRetry={() => setAlertsReloadToken((n) => n + 1)}
+          />
+
+          <AlertDetailPane
+            selectedAlert={selectedAlert}
+            history={selectedAlertId ? history : []}
+            historyLimit={historyLimit}
+            isHistoryLoading={isHistoryLoading}
+            historyError={historyError}
+            onRetryHistory={() => setHistoryReloadToken((n) => n + 1)}
+          />
+        </main>
+      </div>
     </div>
   );
 }
