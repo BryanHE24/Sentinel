@@ -3,6 +3,7 @@ import "./App.css";
 import { AlertDetailPane } from "./components/AlertDetailPane";
 import { AlertFiltersBar } from "./components/AlertFiltersBar";
 import { AlertQueuePane } from "./components/AlertQueuePane";
+import { AskGeniePanel } from "./components/AskGeniePanel";
 import type {
   AlertHistoryResponse,
   AlertQueryFilters,
@@ -533,6 +534,8 @@ export function App() {
               void handleGenerateSummary();
             }}
           />
+
+          <AskGeniePanel />
         </main>
       </div>
     </div>

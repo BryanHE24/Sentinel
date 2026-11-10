@@ -15,19 +15,25 @@ const SYSTEM_PROMPT = [
   "- Output plain text only (no Markdown code blocks, no HTML)."
 ].join("\n");
 
-function getRequiredAiConfig() {
+/**
+ * Validate and normalize workspace OAuth credentials and return
+ * { workspaceUrl, accessToken } for Databricks REST API calls.
+ */
+export async function fetchDatabricksWorkspaceAuth(
+  fetchFn = fetch,
+  extraRequiredEnv = {}
+) {
   const {
     DATABRICKS_HOST,
     DATABRICKS_CLIENT_ID,
-    DATABRICKS_CLIENT_SECRET,
-    SENTINEL_AI_MODEL
+    DATABRICKS_CLIENT_SECRET
   } = process.env;
 
   const required = {
     DATABRICKS_HOST,
     DATABRICKS_CLIENT_ID,
     DATABRICKS_CLIENT_SECRET,
-    SENTINEL_AI_MODEL
+    ...extraRequiredEnv
   };
 
   const missing = Object.entries(required)
@@ -38,7 +44,42 @@ function getRequiredAiConfig() {
     throw new Error(`Missing configuration: ${missing.join(", ")}`);
   }
 
-  return required;
+  const workspaceUrl = new URL(
+    DATABRICKS_HOST.startsWith("https://")
+      ? DATABRICKS_HOST
+      : `https://${DATABRICKS_HOST}`
+  ).origin;
+
+  // Authenticate using Sentinel's app identity.
+  const tokenResponse = await fetchFn(`${workspaceUrl}/oidc/v1/token`, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${Buffer.from(
+        `${DATABRICKS_CLIENT_ID}:${DATABRICKS_CLIENT_SECRET}`
+      ).toString("base64")}`,
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    body: new URLSearchParams({
+      grant_type: "client_credentials",
+      scope: "all-apis"
+    }),
+    signal: AbortSignal.timeout(30000)
+  });
+
+  if (!tokenResponse.ok) {
+    throw new Error(`OAuth request failed: HTTP ${tokenResponse.status}`);
+  }
+
+  const token = await tokenResponse.json();
+
+  if (!token.access_token) {
+    throw new Error("OAuth response did not contain an access token");
+  }
+
+  return {
+    workspaceUrl,
+    accessToken: token.access_token
+  };
 }
 
 /**
@@ -144,51 +185,18 @@ export async function requestAiChatCompletion(
   messages,
   { maxTokens = 1000, fetchFn = fetch } = {}
 ) {
-  const {
-    DATABRICKS_HOST,
-    DATABRICKS_CLIENT_ID,
-    DATABRICKS_CLIENT_SECRET,
-    SENTINEL_AI_MODEL
-  } = getRequiredAiConfig();
-
-  const workspaceUrl = new URL(
-    DATABRICKS_HOST.startsWith("https://")
-      ? DATABRICKS_HOST
-      : `https://${DATABRICKS_HOST}`
-  ).origin;
-
-  // Authenticate using Sentinel's app identity.
-  const tokenResponse = await fetchFn(`${workspaceUrl}/oidc/v1/token`, {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${Buffer.from(
-        `${DATABRICKS_CLIENT_ID}:${DATABRICKS_CLIENT_SECRET}`
-      ).toString("base64")}`,
-      "Content-Type": "application/x-www-form-urlencoded"
-    },
-    body: new URLSearchParams({
-      grant_type: "client_credentials",
-      scope: "all-apis"
-    }),
-    signal: AbortSignal.timeout(30000)
-  });
-
-  if (!tokenResponse.ok) {
-    throw new Error(`OAuth request failed: HTTP ${tokenResponse.status}`);
-  }
-
-  const token = await tokenResponse.json();
-
-  if (!token.access_token) {
-    throw new Error("OAuth response did not contain an access token");
-  }
+  const { SENTINEL_AI_MODEL } = process.env;
+  const { workspaceUrl, accessToken } = await fetchDatabricksWorkspaceAuth(
+    fetchFn,
+    { SENTINEL_AI_MODEL }
+  );
 
   const aiResponse = await fetchFn(
     `${workspaceUrl}/ai-gateway/mlflow/v1/chat/completions`,
     {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${token.access_token}`,
+        Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({

@@ -17,7 +17,7 @@ Prioritize understandable implementation and small steps.
 
 ## Current Objective
 
-Phase 2 is **complete and verified**, and the Phase 3 **read-only investigation UI and API** (`GET /api/alerts`, `GET /api/alerts/:alertId/history`, and `app/frontend/src/`) are **complete and verified** in live browser checks on `feat/phase-3-investigation-ui`. Step 3E (**AI evidence summaries** via `POST /api/alerts/:alertId/summary`) is implemented and verified locally, pending live Databricks AI Gateway verification. Analyst decision saving remains pending.
+Phase 2 is **complete and verified**, and the Phase 3 **read-only investigation UI and API** (`GET /api/alerts`, `GET /api/alerts/:alertId/history`, and `app/frontend/src/`) are **complete and verified** in live browser checks on `feat/phase-3-investigation-ui`. Step 3E (**AI evidence summaries** via `POST /api/alerts/:alertId/summary`) and Step 3F (**Ask Genie panel** via `POST /api/genie/ask`) are implemented and verified locally, pending live Databricks AI Gateway and Genie Conversation API verification. Analyst decision saving remains pending.
 
 ## Development Workflow
 
@@ -140,11 +140,18 @@ The assessment filename above reflects the existing repository spelling.
 
 ### Step 3E — On-Demand AI Evidence Summaries (`app/backend/ai.js`, `app/backend/server.js`, `app/frontend/src/`)
 - **Implemented & Verified Locally**:
-  - Reused the existing Databricks OAuth + AI Gateway chat completion connection in `app/backend/ai.js` (`requestAiChatCompletion`, `maskCardIdentifier`, `buildAlertEvidencePayload`, `generateAlertEvidenceSummary`).
+  - Reused the existing Databricks OAuth + AI Gateway chat completion connection in `app/backend/ai.js` (`fetchDatabricksWorkspaceAuth`, `requestAiChatCompletion`, `maskCardIdentifier`, `buildAlertEvidencePayload`, `generateAlertEvidenceSummary`).
   - Added `POST /api/alerts/:alertId/summary` in `app/backend/server.js`, which retrieves the selected alert and up to `10` strictly earlier card transactions (`event_time < alert.event_time`) on the server via `fetchAlertHistory`, masks card identifiers, excludes fraud labels, treats merchant/source text strictly as data rather than instructions, and requests a short plain-text explanation covering why the transaction was flagged, supporting facts/thresholds, and missing context/limitations.
   - Added the `Generate evidence summary` button and plain-text summary box in `app/frontend/src/components/AlertDetailPane.tsx` and `app/frontend/src/App.tsx` with loading, error, and `AI-generated` labels, clearing state and aborting any in-flight request when alert selection changes.
-- **Pending Live Databricks AI Check & Subsequent Steps**:
-  - Live test of `POST /api/alerts/:alertId/summary` and the `Generate evidence summary` button against the configured Databricks AI Gateway endpoint (`SENTINEL_AI_MODEL`).
+
+### Step 3F — Ask Genie Panel (`app/app.yaml`, `app/backend/genie.js`, `app/backend/server.js`, `app/frontend/src/components/AskGeniePanel.tsx`)
+- **Implemented & Verified Locally**:
+  - Configured `SENTINEL_GENIE_SPACE_ID` via `valueFrom: sentinel-genie` in `app/app.yaml` (never hardcoded).
+  - Reused `fetchDatabricksWorkspaceAuth` in `app/backend/genie.js` and implemented `askSentinelGenie` + `POST /api/genie/ask` (`app/backend/server.js`): starts a Genie conversation (`/api/2.0/genie/spaces/{spaceId}/start-conversation`) or sends a follow-up message (`/conversations/{conversationId}/messages`), polls message status with a bounded timeout (`60s`), and retrieves the plain-text answer, generated SQL, and available attachment query results (capped at `20` displayed rows) without executing generated SQL separately.
+  - Added `app/frontend/src/components/AskGeniePanel.tsx` (separate from the selected-alert summary) with question input, `Ask` / `Ask follow-up` button, `New conversation` reset, loading/error states, `AI-generated` labels, plain-text answer, capped results table, and expandable generated SQL.
+- **Pending Live Databricks AI & Genie Checks & Subsequent Steps**:
+  - Live test of `POST /api/alerts/:alertId/summary` against the configured Databricks AI Gateway endpoint (`SENTINEL_AI_MODEL`).
+  - Live test of `POST /api/genie/ask` (initial question and follow-up question) against the configured Databricks Genie space (`SENTINEL_GENIE_SPACE_ID` from `sentinel-genie`).
   - Analyst decision / case review saving (`Save review` / disposition persistence).
 
 ## Established Decisions
@@ -175,7 +182,7 @@ The assessment filename above reflects the existing repository spelling.
 
 ## Next Steps
 
-1. Test `POST /api/alerts/:alertId/summary` and the `Generate evidence summary` button against the live Databricks AI Gateway endpoint.
+1. Test `POST /api/alerts/:alertId/summary` and `POST /api/genie/ask` (initial + follow-up questions) against the live Databricks AI Gateway and Genie Conversation API endpoints.
 2. Plan and implement analyst decision saving when ready.
 
 ## Verification Limitations

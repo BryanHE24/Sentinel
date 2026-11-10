@@ -7,6 +7,7 @@ import {
   generateAlertEvidenceSummary,
   SUMMARY_HISTORY_LIMIT
 } from "./ai.js";
+import { askSentinelGenie } from "./genie.js";
 import {
   checkSqlConnection,
   fetchAlertHistory,
@@ -16,6 +17,7 @@ import {
 } from "./sql.js";
 
 const app = express();
+app.use(express.json({ limit: "16kb" }));
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 const frontendDirectory = path.resolve(
@@ -178,6 +180,42 @@ app.post("/api/alerts/:alertId/summary", async (request, response) => {
       message: isConfigurationError
         ? error.message
         : "Unable to generate AI evidence summary. Check SQL and AI model endpoint configuration."
+    });
+  }
+});
+
+// Ask Genie Conversation API endpoint (start conversation or follow-up question).
+app.post("/api/genie/ask", async (request, response) => {
+  response.set("Cache-Control", "no-store");
+
+  try {
+    const genieResult = await askSentinelGenie(request.body);
+
+    return response.json({
+      status: "ok",
+      source: "databricks_genie",
+      aiGenerated: true,
+      ...genieResult
+    });
+  } catch (error) {
+    if (error?.statusCode === 400) {
+      return response.status(400).json({
+        status: "invalid_request",
+        message: error.message
+      });
+    }
+
+    console.error("POST /api/genie/ask failed:", error);
+
+    const isConfigurationError =
+      typeof error?.message === "string" &&
+      error.message.startsWith("Missing configuration:");
+
+    return response.status(503).json({
+      status: "unavailable",
+      message: isConfigurationError
+        ? error.message
+        : "Unable to complete Genie request. Check SENTINEL_GENIE_SPACE_ID and Genie space permissions."
     });
   }
 });

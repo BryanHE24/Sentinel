@@ -92,3 +92,20 @@ export interface AlertSummaryResponse {
   summary: string;
 }
 
+export interface GenieAskResponse {
+  status: string;
+  source: string;
+  aiGenerated: boolean;
+  conversationId: string;
+  messageId: string;
+  question: string;
+  answer: string;
+  sql: string | null;
+  columns: string[];
+  rows: Array<Array<string | null>>;
+  displayedRowCount: number;
+  totalRowCount: number;
+  rowCap: number;
+}
+
+

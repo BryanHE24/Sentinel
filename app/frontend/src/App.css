@@ -1061,3 +1061,89 @@
 .state-detail {
   font-size: 12.5px;
 }
+
+/* Ask Genie Panel */
+.genie-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.genie-header-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.genie-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.genie-input {
+  flex: 1 1 320px;
+  font: inherit;
+  font-size: 13.5px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-h);
+}
+
+.genie-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.genie-response-card {
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.genie-response-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.genie-answer-text {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-h);
+  white-space: pre-wrap;
+}
+
+.genie-results-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.genie-sql-pre {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.genie-sql-pre code {
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
