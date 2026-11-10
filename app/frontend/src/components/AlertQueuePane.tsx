@@ -25,7 +25,7 @@ export function AlertQueuePane({
   onRetry,
 }: AlertQueuePaneProps) {
   return (
-    <section className="pane queue-pane" aria-label="Alert queue">
+    <section className="pane glass-panel queue-pane" aria-label="Alert queue">
       <div className="pane-header">
         <div>
           <h2>Flagged Alert Queue</h2>

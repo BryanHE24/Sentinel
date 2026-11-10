@@ -227,7 +227,7 @@ export function App() {
 
   return (
     <div className="workspace-shell">
-      <header className="workspace-header">
+      <header className="workspace-header glass-panel">
         <div className="brand-block">
           <div className="eyebrow-row">
             <span className="eyebrow-pill">Sentinel · Phase 3 Investigation UI</span>
@@ -250,7 +250,7 @@ export function App() {
         </div>
 
         <div className="summary-strip" aria-label="Counts in loaded results">
-          <div className="summary-pill">
+          <div className="summary-pill summary-pill-accent">
             <span className="summary-label">Loaded Alerts (cap {appliedLimit})</span>
             <span className="summary-value">{loadedSummary.totalLoaded}</span>
           </div>

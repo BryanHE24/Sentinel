@@ -25,7 +25,10 @@ export function AlertDetailPane({
 }: AlertDetailPaneProps) {
   if (!selectedAlert) {
     return (
-      <section className="pane detail-pane" aria-label="Alert investigation details">
+      <section
+        className="pane glass-panel detail-pane"
+        aria-label="Alert investigation details"
+      >
         <div className="state-box">
           <p className="state-title">Select an alert to inspect</p>
           <p className="state-detail">
@@ -38,7 +41,10 @@ export function AlertDetailPane({
   }
 
   return (
-    <section className="pane detail-pane" aria-label="Alert investigation details">
+    <section
+      className="pane glass-panel detail-pane"
+      aria-label="Alert investigation details"
+    >
       <div className="detail-header">
         <div>
           <span className="review-banner">

@@ -37,7 +37,11 @@ export function AlertFiltersBar({
   }
 
   return (
-    <form className="filters-bar" onSubmit={handleSubmit} aria-label="Alert filters">
+    <form
+      className="filters-bar glass-panel"
+      onSubmit={handleSubmit}
+      aria-label="Alert filters"
+    >
       <div className="filters-row">
         <label className="filter-field">
           <span className="filter-label">Rule Filter</span>
