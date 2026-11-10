@@ -3,8 +3,8 @@
 ## Session Metadata
 
 - Last updated: 2026-11-09
-- Active role: Developer
-- Mode: EXECUTION
+- Active role: QA Engineer
+- Mode: VERIFICATION
 
 ## Project
 
@@ -17,7 +17,7 @@ Prioritize understandable implementation and small steps.
 
 ## Current Objective
 
-Phase 2 is **complete and verified**. Plan and build the smallest Phase 3 UI step (`docs/planning/IMPLEMENTATION_PLAN-phase-3-ui.md`): an alert list with filters, an alert detail view with transaction history and rule evidence, and a clear path to `workspace.sentinel_gold.alerts` that explicitly distinguishes mock preview data from connected Databricks SQL data.
+Phase 2 is **complete and verified**, and Step 3A backend endpoints (`GET /api/alerts` and `GET /api/alerts/:alertId/history`) are **confirmed working against live Databricks SQL**. Build and verify the Phase 3 React + TypeScript investigation UI (`app/frontend/src/`) on `feat/phase-3-investigation-ui`.
 
 ## Development Workflow
 
@@ -109,15 +109,27 @@ The assessment filename above reflects the existing repository spelling.
 ## Phase 3 Status (Investigation UI & API)
 
 ### Step 3A — Read-Only Alert & History Backend Endpoints (`app/backend/sql.js`, `app/backend/server.js`)
-- **Implemented & Verified Locally**:
-  - Added reusable parameterized `executeSqlStatement` (`DBSQLClient` + `DBSQLParameter`) in `app/backend/sql.js` keeping OAuth credentials strictly server-side.
-  - Added `GET /api/alerts` (reads `workspace.sentinel_gold.alerts` with validated `ruleId` / `MULTI_RULE`, `startDate`, `endDate`, `search`, and `limit` capped at `200`, default `50`).
-  - Added `GET /api/alerts/:alertId/history` (validates 64-hex `alertId`, reads the alert from `workspace.sentinel_gold.alerts`, and queries `workspace.sentinel_silver.transactions` for the same `cc_num` with strictly earlier `event_time < CAST(:alertEventTime AS TIMESTAMP_NTZ)`, `limit` capped at `100`, default `25`).
+- **Executed and Confirmed in Live Databricks SQL**:
+  - Parameterized `executeSqlStatement` (`DBSQLClient` + `DBSQLParameter`) in `app/backend/sql.js` keeping OAuth credentials strictly server-side.
+  - `GET /api/alerts` (reads `workspace.sentinel_gold.alerts` with validated `ruleId` / `MULTI_RULE`, `startDate`, `endDate`, `search`, and `limit` capped at `200`, default `50`).
+  - `GET /api/alerts/:alertId/history` (validates 64-hex `alertId`, reads the alert from `workspace.sentinel_gold.alerts`, and queries `workspace.sentinel_silver.transactions` for the same `cc_num` with strictly earlier `event_time < CAST(:alertEventTime AS TIMESTAMP_NTZ)`, `limit` capped at `100`, default `25`).
   - Preserved exact decimal strings (`CAST(CAST(... AS DECIMAL(18, 2)) AS STRING)`) and timezone-unspecified timestamp strings (`DATE_FORMAT(event_time, 'yyyy-MM-dd HH:mm:ss')`) in SQL projections and JSON serialization; excluded fraud labels completely.
-  - Added safe client error responses (`400` for invalid parameters, `404` for unknown alert IDs, `503` for missing config or SQL execution failure) while logging diagnostic details server-side.
-  - **Local Checks Passed**: `node --check` syntax validation on `app/backend/sql.js` and `app/backend/server.js`, plus unit assertions covering filter validation, limit capping, invalid-input `400` errors, decimal/timestamp string preservation, and `event_time < alert.event_time` SQL generation.
-- **Pending Live Databricks Connection**:
-  - Executing `GET /api/alerts` and `GET /api/alerts/:alertId/history` against the live Databricks SQL Warehouse (`workspace.sentinel_gold.alerts` and `workspace.sentinel_silver.transactions`) requires deploying or running with live Databricks OAuth credentials and `SELECT` privileges on both tables.
+  - Confirmed live backend execution against Databricks SQL (`workspace.sentinel_gold.alerts` and `workspace.sentinel_silver.transactions`).
+
+### Steps 3B–3D — React + TypeScript Investigation UI (`app/frontend/src/`)
+- **Implemented & Verified Locally (`npm run lint` & `npm run build` Passed)**:
+  - **API Contracts & Types** (`app/frontend/src/types/alerts.ts`): Typed contracts for `GoldAlert`, `RuleEvidence`, `CardHistoryTransaction`, `AlertQueryFilters`, `AppliedAlertFilters`, `AlertsListResponse`, and `AlertHistoryResponse` (no `is_fraud` field).
+  - **Formatters** (`app/frontend/src/utils/formatters.ts`): `maskCardNumber` (`•••• 1234`), `formatCurrency` (`$180.50` while preserving exact decimal strings), `formatRuleTitle`, `formatRuleBadge`, and `formatObservedMetricsList` (`key=value` metric parser).
+  - **Filter Bar** (`app/frontend/src/components/AlertFiltersBar.tsx`): Rule filter (`ALL`, `RULE_01_CARD_VELOCITY_1H`, `RULE_02_UNUSUAL_AMOUNT_14D`, `RULE_03_REPEATED_SIMILAR_MERCHANT_1H`, `MULTI_RULE`), `startDate` / `endDate` inputs, replay-period quick pills (`Initial History`, `Rule Dev`, `Evaluation`), merchant/category/transaction ID search, and result cap selector (`25`, `50`, `100`, `200`).
+  - **Two-Pane Investigation Workspace** (`app/frontend/src/App.tsx`, `app/frontend/src/components/AlertQueuePane.tsx`, `app/frontend/src/components/AlertDetailPane.tsx`):
+    - **Left Pane (`AlertQueuePane`)**: Displays `Showing X loaded results (API cap: Y rows)`, loading/error/empty states, and selectable alert cards with formatted USD amount, masked card number, merchant, category, and rule badges.
+    - **Right Pane (`AlertDetailPane`)**: Displays transaction & lineage metadata, masked card number, readable rule evidence cards (`observed_metrics` pills + `threshold_definition`), 4-card point-in-time historical feature snapshot (`1h` velocity, `14d` baseline + `3x` threshold, `1h` merchant count, `1h` similar-amount count + `±10%` bounds), and the strictly earlier card history table (`event_time < alert.event_time`) from `GET /api/alerts/:alertId/history` with loading/error/empty states and loaded-result count labeling.
+    - **Header Summary Strip**: Explicitly labels all summary counts (`Loaded Alerts`, `Multi-Rule (Loaded)`, `Velocity / 1h (Loaded)`, `Unusual Amt / 14d (Loaded)`) as **loaded results** bounded by the API response cap.
+  - **Local Verification Passed**:
+    - `npm run lint` (`eslint .`): `0` errors, `0` warnings.
+    - `npm run build` (`tsc -b && vite build`): `0` errors; production bundle built in `app/frontend/dist/`.
+- **Pending Interactive Browser Verification**:
+  - End-to-end visual and interactive review in the browser against the running Express/Databricks Apps backend (`GET /api/alerts` and `GET /api/alerts/:alertId/history`).
 
 ## Established Decisions
 
@@ -147,8 +159,8 @@ The assessment filename above reflects the existing repository spelling.
 
 ## Next Steps
 
-1. Test `GET /api/alerts` and `GET /api/alerts/:alertId/history` against the live Databricks SQL Warehouse (`workspace.sentinel_gold.alerts` and `workspace.sentinel_silver.transactions`).
-2. Proceed to Step 3B & Step 3C in `docs/planning/IMPLEMENTATION_PLAN-phase-3-ui.md`: implement frontend types, realistic mock preview fixtures, and the React + TypeScript investigation workspace (`app/frontend/src/`).
+1. Run interactive browser verification of the Phase 3 investigation UI (`app/frontend/src/`) connected to the live backend (`GET /api/alerts` and `GET /api/alerts/:alertId/history`).
+2. Review any UI polish feedback or proceed to Phase 4 planning when ready.
 
 ## Verification Limitations
 
