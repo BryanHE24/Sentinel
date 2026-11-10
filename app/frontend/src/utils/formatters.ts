@@ -36,45 +36,45 @@ export function formatCurrency(amount: string | null | undefined): string {
 }
 
 /**
- * Full human-readable title for a monitoring rule ID.
+ * Plain-language title for a monitoring rule ID.
  */
 export function formatRuleTitle(ruleId: string): string {
   switch (ruleId) {
     case "RULE_01_CARD_VELOCITY_1H":
-      return "High Card Velocity in 1 Hour";
+      return "Payment velocity · rule triggered";
     case "RULE_02_UNUSUAL_AMOUNT_14D":
-      return "Unusual Amount vs. 14-Day Card Average";
+      return "Unusual amount · rule triggered";
     case "RULE_03_REPEATED_SIMILAR_MERCHANT_1H":
-      return "Repeated Similar-Amount Payment at Same Merchant (1h)";
+      return "Similar merchant payments · rule triggered";
     default:
-      return ruleId;
+      return `${ruleId} · rule triggered`;
   }
 }
 
 /**
- * Compact badge label for the alert queue list.
+ * Compact plain-language signal label for the review queue table.
  */
 export function formatRuleBadge(ruleId: string): string {
   switch (ruleId) {
     case "RULE_01_CARD_VELOCITY_1H":
-      return "R1 · Velocity 1h";
+      return "Payment velocity (1h)";
     case "RULE_02_UNUSUAL_AMOUNT_14D":
-      return "R2 · Unusual Amt 14d";
+      return "Unusual amount (14d)";
     case "RULE_03_REPEATED_SIMILAR_MERCHANT_1H":
-      return "R3 · Similar Merch 1h";
+      return "Similar payments (1h)";
     default:
       return ruleId;
   }
 }
 
 const METRIC_LABELS: Record<string, string> = {
-  amount: "Transaction amount",
-  card_txn_count_1h: "Earlier card txns (1h)",
-  card_txn_count_14d: "Earlier card txns (14d)",
-  card_avg_amount_14d: "14-day average amount",
-  unusual_amount_threshold_14d: "3× unusual-amount threshold",
-  card_merchant_txn_count_1h: "Earlier same-merchant txns (1h)",
-  card_merchant_similar_amount_count_1h: "Earlier similar-amount txns (1h)",
+  amount: "Selected amount",
+  card_txn_count_1h: "Earlier 1h payments",
+  card_txn_count_14d: "Earlier 14d payments",
+  card_avg_amount_14d: "Earlier 14d average",
+  unusual_amount_threshold_14d: "3× threshold",
+  card_merchant_txn_count_1h: "Earlier 1h merchant payments",
+  card_merchant_similar_amount_count_1h: "Earlier 1h similar payments",
   similar_amount_lower_bound: "Lower bound (−10%)",
   similar_amount_upper_bound: "Upper bound (+10%)",
 };
@@ -123,29 +123,31 @@ export function describeRuleEvidencePlainly(
 ): string {
   switch (evidence.rule_id) {
     case "RULE_01_CARD_VELOCITY_1H":
-      return `This card had ${alert.card_txn_count_1h} earlier transaction${
+      return `Card had ${alert.card_txn_count_1h} earlier payment${
         alert.card_txn_count_1h === 1 ? "" : "s"
-      } in the 1-hour window before this payment (rule triggers at 3 or more earlier transactions).`;
+      } within the prior 1 hour. Rule: at least 3 earlier payments on the same card within 1 hour.`;
 
     case "RULE_02_UNUSUAL_AMOUNT_14D":
-      return `Payment of ${formatCurrency(
+      return `Selected amount: ${formatCurrency(
         alert.amount
-      )} exceeds 3× the card's 14-day average of ${formatCurrency(
+      )}. Earlier 14-day average: ${formatCurrency(
         alert.card_avg_amount_14d
-      )} across ${alert.card_txn_count_14d} earlier transactions (threshold: ${formatCurrency(
+      )} across ${alert.card_txn_count_14d} earlier payments. Rule: amount > 3× earlier 14-day average (${formatCurrency(
         alert.unusual_amount_threshold_14d
-      )}, minimum 5 earlier transactions).`;
+      )}), with at least 5 earlier payments.`;
 
     case "RULE_03_REPEATED_SIMILAR_MERCHANT_1H":
-      return `This card had ${
+      return `Selected amount: ${formatCurrency(
+        alert.amount
+      )} at ${alert.merchant}. Card had ${
         alert.card_merchant_similar_amount_count_1h
       } earlier payment${
         alert.card_merchant_similar_amount_count_1h === 1 ? "" : "s"
-      } at ${alert.merchant} within ±10% (${formatCurrency(
+      } within ±10% (${formatCurrency(
         alert.similar_amount_lower_bound
-      )} to ${formatCurrency(
+      )}–${formatCurrency(
         alert.similar_amount_upper_bound
-      )}) in the prior 1 hour (rule triggers at 2 or more).`;
+      )}) at this merchant in the prior 1 hour. Rule: at least 2 similar earlier payments.`;
 
     default:
       return `Matched rule ${evidence.rule_id} (${evidence.window} window): ${evidence.threshold_definition}.`;

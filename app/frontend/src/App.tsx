@@ -19,44 +19,6 @@ const DEFAULT_FILTERS: AlertQueryFilters = {
   limit: 50,
 };
 
-const SIDEBAR_RULE_VIEWS: Array<{ label: string; ruleId: string }> = [
-  { label: "All Flagged Alerts", ruleId: "" },
-  { label: "Rule 1 · Velocity (1h)", ruleId: "RULE_01_CARD_VELOCITY_1H" },
-  { label: "Rule 2 · Unusual Amt (14d)", ruleId: "RULE_02_UNUSUAL_AMOUNT_14D" },
-  {
-    label: "Rule 3 · Similar Merch (1h)",
-    ruleId: "RULE_03_REPEATED_SIMILAR_MERCHANT_1H",
-  },
-  { label: "Multi-Rule (2+)", ruleId: "MULTI_RULE" },
-];
-
-const SIDEBAR_REPLAY_WINDOWS: Array<{
-  label: string;
-  range: string;
-  startDate: string;
-  endDate: string;
-}> = [
-  { label: "All Replay Dates", range: "Jan 1–Feb 11", startDate: "", endDate: "" },
-  {
-    label: "Initial History",
-    range: "Jan 1–14",
-    startDate: "2019-01-01",
-    endDate: "2019-01-14",
-  },
-  {
-    label: "Rule Development",
-    range: "Jan 15–28",
-    startDate: "2019-01-15",
-    endDate: "2019-01-28",
-  },
-  {
-    label: "Holdout Evaluation",
-    range: "Jan 29–Feb 11",
-    startDate: "2019-01-29",
-    endDate: "2019-02-11",
-  },
-];
-
 function buildAlertsUrl(filters: AlertQueryFilters): string {
   const params = new URLSearchParams();
   if (filters.ruleId) {
@@ -246,6 +208,37 @@ export function App() {
     };
   }, [alerts]);
 
+  const sidebarItems = useMemo(
+    () => [
+      {
+        label: "Alert queue (all)",
+        ruleId: "",
+        count: loadedSummary.totalLoaded,
+      },
+      {
+        label: "Payment velocity (1h)",
+        ruleId: "RULE_01_CARD_VELOCITY_1H",
+        count: loadedSummary.velocityCount,
+      },
+      {
+        label: "Unusual amount (14d)",
+        ruleId: "RULE_02_UNUSUAL_AMOUNT_14D",
+        count: loadedSummary.unusualAmountCount,
+      },
+      {
+        label: "Similar payments (1h)",
+        ruleId: "RULE_03_REPEATED_SIMILAR_MERCHANT_1H",
+        count: loadedSummary.similarMerchantCount,
+      },
+      {
+        label: "Multi-rule (2+)",
+        ruleId: "MULTI_RULE",
+        count: loadedSummary.multiRuleCount,
+      },
+    ],
+    [loadedSummary]
+  );
+
   function handleApplyFilters() {
     setAppliedFilters({ ...draftFilters });
   }
@@ -256,15 +249,8 @@ export function App() {
   }
 
   function handleQuickRuleSelect(ruleId: string) {
-    const next = { ...draftFilters, ruleId };
-    setDraftFilters(next);
-    setAppliedFilters({ ...appliedFilters, ruleId });
-  }
-
-  function handleQuickWindowSelect(startDate: string, endDate: string) {
-    const next = { ...draftFilters, startDate, endDate };
-    setDraftFilters(next);
-    setAppliedFilters({ ...appliedFilters, startDate, endDate });
+    setDraftFilters((prev) => ({ ...prev, ruleId }));
+    setAppliedFilters((prev) => ({ ...prev, ruleId }));
   }
 
   function handleSelectAlert(alertId: string) {
@@ -277,60 +263,32 @@ export function App() {
 
   return (
     <div className="app-layout">
-      {/* Narrow Sidebar */}
-      <aside className="workspace-sidebar" aria-label="Workspace views and quick filters">
+      {/* Left Navy Sidebar */}
+      <aside className="workspace-sidebar" aria-label="Workspace navigation">
         <div className="sidebar-brand">
-          <div className="sidebar-logo-mark" aria-hidden="true">
-            S
+          <div className="sidebar-brand-row">
+            <span className="sidebar-diamond" aria-hidden="true" />
+            <span className="sidebar-brand-name">sentinel</span>
           </div>
-          <div>
-            <div className="sidebar-brand-name">Sentinel</div>
-            <div className="sidebar-brand-sub">Alert Investigation</div>
-          </div>
+          <span className="sidebar-brand-sub">PAYMENT INTELLIGENCE</span>
         </div>
 
         <div className="sidebar-group">
-          <span className="sidebar-group-title">Rule Views</span>
+          <span className="sidebar-group-title">WORKSPACE</span>
           <ul className="sidebar-nav-list">
-            {SIDEBAR_RULE_VIEWS.map((view) => {
-              const isActive = appliedFilters.ruleId === view.ruleId;
+            {sidebarItems.map((item) => {
+              const isActive = appliedFilters.ruleId === item.ruleId;
               return (
-                <li key={view.label}>
+                <li key={item.label}>
                   <button
                     type="button"
                     className={`sidebar-nav-btn ${
                       isActive ? "sidebar-nav-btn-active" : ""
                     }`}
-                    onClick={() => handleQuickRuleSelect(view.ruleId)}
+                    onClick={() => handleQuickRuleSelect(item.ruleId)}
                   >
-                    <span>{view.label}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-
-        <div className="sidebar-group">
-          <span className="sidebar-group-title">Replay Windows</span>
-          <ul className="sidebar-nav-list">
-            {SIDEBAR_REPLAY_WINDOWS.map((win) => {
-              const isActive =
-                appliedFilters.startDate === win.startDate &&
-                appliedFilters.endDate === win.endDate;
-              return (
-                <li key={win.label}>
-                  <button
-                    type="button"
-                    className={`sidebar-nav-btn ${
-                      isActive ? "sidebar-nav-btn-active" : ""
-                    }`}
-                    onClick={() =>
-                      handleQuickWindowSelect(win.startDate, win.endDate)
-                    }
-                  >
-                    <span>{win.label}</span>
-                    <span className="sidebar-nav-meta">{win.range}</span>
+                    <span>{item.label}</span>
+                    <span className="sidebar-count-pill">{item.count}</span>
                   </button>
                 </li>
               );
@@ -339,83 +297,103 @@ export function App() {
         </div>
 
         <div className="sidebar-footer">
+          <div className="sidebar-status-line">
+            <span
+              className={`status-dot ${
+                alertsError ? "status-dot-error" : "status-dot-live"
+              }`}
+              aria-hidden="true"
+            />
+            <span>
+              {alertsError ? "Connection error" : "Platform operational"}
+            </span>
+          </div>
+          <div className="sidebar-footer-sub">Governed data · Unity Catalog</div>
+          <div className="sidebar-footer-tag">
+            <strong>FINTECH OPERATIONS</strong>
+            <span>Investigation workspace</span>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <div className="workspace-shell">
+        <div className="topbar">
+          <div className="breadcrumbs">
+            <span>Operations</span>
+            <span className="breadcrumb-sep">/</span>
+            <strong>Alert queue</strong>
+          </div>
           <div
             className={`source-badge ${
               alertsError ? "source-badge-error" : "source-badge-live"
             }`}
           >
-            {alertsError ? "SQL Connection Error" : "Databricks SQL Connected"}
+            {alertsError
+              ? "DATABRICKS SQL · CONNECTION ERROR"
+              : "CONNECTED · DATABRICKS SQL"}
           </div>
-          <details className="sidebar-tech-details">
-            <summary>Data Source Tables</summary>
-            <div className="sidebar-tech-body">
-              <div>
-                Alerts: <code>workspace.sentinel_gold.alerts</code>
-              </div>
-              <div>
-                History: <code>workspace.sentinel_silver.transactions</code>
-              </div>
-            </div>
-          </details>
         </div>
-      </aside>
 
-      {/* Main Investigation Workspace */}
-      <div className="workspace-shell">
-        <header className="workspace-header">
-          <div className="brand-block">
-            <div className="eyebrow-row">
-              <span className="eyebrow-pill">Phase 3 Investigation Workspace</span>
-              <span
-                className={`source-badge ${
-                  alertsError ? "source-badge-error" : "source-badge-live"
-                }`}
-              >
-                {alertsError
-                  ? "Databricks SQL: Connection / Query Error"
-                  : "Live: Databricks SQL"}
-              </span>
-            </div>
-            <h1>Transaction Monitoring &amp; Alert Investigation</h1>
-            <p className="header-description">
-              Review flagged card payments, plain-language rule evidence, and strictly
-              earlier card transactions before the alert time.
-            </p>
-          </div>
-
-          <div className="summary-strip" aria-label="Counts in loaded results">
-            <div className="summary-pill summary-pill-accent">
-              <span className="summary-label">Loaded Alerts (cap {appliedLimit})</span>
-              <span className="summary-value">{loadedSummary.totalLoaded}</span>
-            </div>
-            <div className="summary-pill">
-              <span className="summary-label">Rule 1 Velocity (loaded)</span>
-              <span className="summary-value">{loadedSummary.velocityCount}</span>
-            </div>
-            <div className="summary-pill">
-              <span className="summary-label">Rule 2 Unusual Amt (loaded)</span>
-              <span className="summary-value">{loadedSummary.unusualAmountCount}</span>
-            </div>
-            <div className="summary-pill">
-              <span className="summary-label">Rule 3 Similar Merch (loaded)</span>
-              <span className="summary-value">{loadedSummary.similarMerchantCount}</span>
-            </div>
-            <div className="summary-pill">
-              <span className="summary-label">Multi-Rule (loaded)</span>
-              <span className="summary-value">{loadedSummary.multiRuleCount}</span>
-            </div>
-          </div>
+        <header className="console-header">
+          <span className="section-eyebrow">RISK OPERATIONS CONSOLE</span>
+          <h1>Every alert. Clear evidence.</h1>
+          <p className="console-subtitle">
+            Investigate unusual payments with context you can trust.
+          </p>
         </header>
 
-        <AlertFiltersBar
-          draftFilters={draftFilters}
-          isLoading={isAlertsLoading}
-          onDraftChange={setDraftFilters}
-          onApply={handleApplyFilters}
-          onReset={handleResetFilters}
-        />
+        {/* Compact Summary Cards (Loaded Results) */}
+        <section
+          className="summary-cards-grid"
+          aria-label="Summary of loaded alert results"
+        >
+          <div className="summary-card">
+            <span className="summary-card-label">Loaded alerts</span>
+            <span className="summary-card-value">{loadedSummary.totalLoaded}</span>
+            <span className="summary-card-foot summary-card-foot-ok">
+              Showing up to {appliedLimit} loaded rows
+            </span>
+          </div>
 
-        <main className="workspace-grid">
+          <div className="summary-card">
+            <span className="summary-card-label">Payment velocity (loaded)</span>
+            <span className="summary-card-value">{loadedSummary.velocityCount}</span>
+            <span className="summary-card-foot">
+              Rule 1 matches in loaded results
+            </span>
+          </div>
+
+          <div className="summary-card">
+            <span className="summary-card-label">Unusual amount (loaded)</span>
+            <span className="summary-card-value">
+              {loadedSummary.unusualAmountCount}
+            </span>
+            <span className="summary-card-foot">
+              Rule 2 matches in loaded results
+            </span>
+          </div>
+
+          <div className="summary-card">
+            <span className="summary-card-label">Similar payments (loaded)</span>
+            <span className="summary-card-value">
+              {loadedSummary.similarMerchantCount}
+            </span>
+            <span className="summary-card-foot">
+              Rule 3 matches in loaded results
+            </span>
+          </div>
+
+          <div className="summary-card">
+            <span className="summary-card-label">Multi-rule alerts (loaded)</span>
+            <span className="summary-card-value">{loadedSummary.multiRuleCount}</span>
+            <span className="summary-card-foot">
+              2+ rules triggered in loaded results
+            </span>
+          </div>
+        </section>
+
+        <main className="workspace-content">
           <AlertQueuePane
             alerts={alerts}
             appliedLimit={appliedLimit}
@@ -424,7 +402,15 @@ export function App() {
             errorMessage={alertsError}
             onSelectAlert={handleSelectAlert}
             onRetry={() => setAlertsReloadToken((n) => n + 1)}
-          />
+          >
+            <AlertFiltersBar
+              draftFilters={draftFilters}
+              isLoading={isAlertsLoading}
+              onDraftChange={setDraftFilters}
+              onApply={handleApplyFilters}
+              onReset={handleResetFilters}
+            />
+          </AlertQueuePane>
 
           <AlertDetailPane
             selectedAlert={selectedAlert}

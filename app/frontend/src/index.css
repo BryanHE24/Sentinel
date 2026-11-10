@@ -1,55 +1,60 @@
 :root {
-  /* Deep Navy Surfaces */
-  --bg: #080b12;
-  --surface-sidebar: #0b101b;
-  --surface: #0f1624;
-  --surface-elevated: #141d30;
-  --surface-subtle: #0c121e;
-  --code-bg: #162035;
+  /* Sentinel Template Palette: Navy Sidebar + Pale Gray Canvas + White Panels + Blue Accents */
+  --sidebar-bg: #0d1526;
+  --sidebar-active-bg: #1e293b;
+  --sidebar-border: #1e293b;
+  --sidebar-text: #94a3b8;
+  --sidebar-text-active: #ffffff;
 
-  /* Thin Borders */
-  --border: #1e293b;
-  --border-strong: #2d3d56;
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --surface-subtle: #f8fafc;
+  --surface-selected: #eff6ff;
+  --code-bg: #f1f5f9;
 
-  /* Precise Typography Colors */
-  --text-h: #f1f5f9;
-  --text: #94a3b8;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+
+  --text-h: #0f172a;
+  --text: #475569;
   --text-muted: #64748b;
 
-  /* Violet Accent Palette */
-  --accent: #8b5cf6;
-  --accent-bright: #a78bfa;
-  --accent-bg: rgba(139, 92, 246, 0.14);
-  --accent-bg-strong: rgba(139, 92, 246, 0.22);
-  --accent-border: rgba(139, 92, 246, 0.52);
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-soft: #eff6ff;
+  --accent-border: #bfdbfe;
 
-  /* Comparison Chart Bar Colors */
-  --bar-track: #1b2538;
-  --bar-txn: #a78bfa;
-  --bar-avg: #38bdf8;
-  --bar-threshold: #f59e0b;
+  /* Rule Evidence Callout */
+  --callout-bg: #fffbeb;
+  --callout-border: #d97706;
+
+  /* Comparison Chart Bars */
+  --bar-track: #e2e8f0;
+  --bar-txn: #2563eb;
+  --bar-avg: #64748b;
+  --bar-threshold: #d97706;
 
   /* Status Colors */
-  --success: #34d399;
-  --success-bg: rgba(52, 211, 153, 0.12);
-  --danger: #f87171;
-  --danger-bg: rgba(248, 113, 113, 0.12);
-  --warning-bg: rgba(245, 158, 11, 0.14);
-  --warning-text: #fbbf24;
+  --success: #059669;
+  --success-bg: #ecfdf5;
+  --danger: #dc2626;
+  --danger-bg: #fef2f2;
+  --warning-bg: #fef3c7;
+  --warning-text: #92400e;
 
-  /* Compact Radii */
-  --radius-lg: 8px;
-  --radius-md: 6px;
-  --radius-sm: 4px;
+  --radius-lg: 12px;
+  --radius-md: 8px;
+  --radius-sm: 6px;
   --radius-pill: 999px;
 
-  /* Font Stacks */
+  --shadow-panel: 0 1px 2px rgba(15, 23, 42, 0.04);
+
   --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --heading: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
 
-  font: 13.5px/1.45 var(--sans);
-  color-scheme: dark;
+  font: 13.5px/1.5 var(--sans);
+  color-scheme: light;
   color: var(--text);
   background-color: var(--bg);
   font-synthesis: none;
@@ -81,7 +86,7 @@ h3 {
   font-family: var(--heading);
   color: var(--text-h);
   margin: 0;
-  letter-spacing: -0.015em;
+  letter-spacing: -0.02em;
 }
 
 p {
@@ -91,8 +96,8 @@ p {
 code {
   font-family: var(--mono);
   font-size: 0.88em;
-  padding: 1px 5px;
-  border-radius: var(--radius-sm);
+  padding: 1px 6px;
+  border-radius: 4px;
   background: var(--code-bg);
   border: 1px solid var(--border);
   color: var(--text-h);

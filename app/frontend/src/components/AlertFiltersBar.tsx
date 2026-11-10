@@ -10,9 +10,9 @@ interface AlertFiltersBarProps {
 }
 
 const DATE_PRESETS: Array<{ label: string; startDate: string; endDate: string }> = [
-  { label: "All Dates", startDate: "", endDate: "" },
-  { label: "Initial History (Jan 1–14)", startDate: "2019-01-01", endDate: "2019-01-14" },
-  { label: "Rule Dev (Jan 15–28)", startDate: "2019-01-15", endDate: "2019-01-28" },
+  { label: "All dates", startDate: "", endDate: "" },
+  { label: "Initial history (Jan 1–14)", startDate: "2019-01-01", endDate: "2019-01-14" },
+  { label: "Rule dev (Jan 15–28)", startDate: "2019-01-15", endDate: "2019-01-28" },
   { label: "Evaluation (Jan 29–Feb 11)", startDate: "2019-01-29", endDate: "2019-02-11" },
 ];
 
@@ -39,30 +39,43 @@ export function AlertFiltersBar({
   return (
     <form className="filters-bar" onSubmit={handleSubmit} aria-label="Alert filters">
       <div className="filters-row">
+        <label className="filter-field filter-field-search">
+          <span className="filter-label">Search transaction, card or merchant</span>
+          <input
+            type="search"
+            placeholder="Search transaction, card or merchant..."
+            maxLength={100}
+            value={draftFilters.search}
+            onChange={(e) =>
+              onDraftChange({ ...draftFilters, search: e.target.value })
+            }
+          />
+        </label>
+
         <label className="filter-field">
-          <span className="filter-label">Rule Filter</span>
+          <span className="filter-label">Rule signal</span>
           <select
             value={draftFilters.ruleId}
             onChange={(e) =>
               onDraftChange({ ...draftFilters, ruleId: e.target.value })
             }
           >
-            <option value="">All Flagged Alerts</option>
+            <option value="">All matched rules</option>
             <option value="RULE_01_CARD_VELOCITY_1H">
-              Rule 1 · Card Velocity (1h)
+              Rule 1 · Payment velocity (1h)
             </option>
             <option value="RULE_02_UNUSUAL_AMOUNT_14D">
-              Rule 2 · Unusual Amount (14d)
+              Rule 2 · Unusual amount (14d)
             </option>
             <option value="RULE_03_REPEATED_SIMILAR_MERCHANT_1H">
-              Rule 3 · Similar Merchant (1h)
+              Rule 3 · Similar payments (1h)
             </option>
-            <option value="MULTI_RULE">Multi-Rule Matches (2+)</option>
+            <option value="MULTI_RULE">Multi-rule matches (2+)</option>
           </select>
         </label>
 
         <label className="filter-field">
-          <span className="filter-label">Start Batch Date</span>
+          <span className="filter-label">Start date</span>
           <input
             type="date"
             value={draftFilters.startDate}
@@ -73,7 +86,7 @@ export function AlertFiltersBar({
         </label>
 
         <label className="filter-field">
-          <span className="filter-label">End Batch Date</span>
+          <span className="filter-label">End date</span>
           <input
             type="date"
             value={draftFilters.endDate}
@@ -83,21 +96,8 @@ export function AlertFiltersBar({
           />
         </label>
 
-        <label className="filter-field filter-field-search">
-          <span className="filter-label">Search (Txn ID, Card, Merchant)</span>
-          <input
-            type="search"
-            placeholder="Merchant, txn ID, or last 4 digits…"
-            maxLength={100}
-            value={draftFilters.search}
-            onChange={(e) =>
-              onDraftChange({ ...draftFilters, search: e.target.value })
-            }
-          />
-        </label>
-
         <label className="filter-field filter-field-limit">
-          <span className="filter-label">Result Cap</span>
+          <span className="filter-label">Result limit</span>
           <select
             value={draftFilters.limit}
             onChange={(e) =>
@@ -113,7 +113,7 @@ export function AlertFiltersBar({
 
         <div className="filter-actions">
           <button type="submit" className="btn-primary" disabled={isLoading}>
-            {isLoading ? "Loading…" : "Apply Filters"}
+            {isLoading ? "Loading…" : "Apply"}
           </button>
           <button
             type="button"
@@ -127,7 +127,7 @@ export function AlertFiltersBar({
       </div>
 
       <div className="preset-row">
-        <span className="preset-caption">Replay period:</span>
+        <span className="preset-caption">Replay window:</span>
         {DATE_PRESETS.map((preset) => {
           const isActive =
             draftFilters.startDate === preset.startDate &&

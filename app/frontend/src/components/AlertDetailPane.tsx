@@ -36,11 +36,14 @@ export function AlertDetailPane({
 }: AlertDetailPaneProps) {
   if (!selectedAlert) {
     return (
-      <section className="pane detail-pane" aria-label="Alert investigation details">
+      <section
+        className="panel detail-panel"
+        aria-label="Selected investigation details"
+      >
         <div className="state-box">
-          <p className="state-title">Select an alert from the queue</p>
+          <p className="state-title">Select an alert from the review queue</p>
           <p className="state-detail">
-            Choose a flagged payment on the left to inspect its plain-language rule
+            Choose a flagged payment above to inspect its plain-language rule
             evidence, 14-day amount comparison, and strictly earlier card activity.
           </p>
         </div>
@@ -72,84 +75,85 @@ export function AlertDetailPane({
   const thresholdBarWidth = computeBarWidth(threshold14dNum, maxComparisonAmount);
 
   return (
-    <section className="pane detail-pane" aria-label="Alert investigation details">
-      {/* Top Investigation Header */}
+    <section
+      className="panel detail-panel"
+      aria-label="Selected investigation details"
+    >
+      {/* Selected Investigation Header */}
       <div className="detail-header">
-        <div className="detail-title-group">
-          <div className="detail-badge-row">
-            <span className="review-banner">
-              Analyst Review Signal · Does not automatically establish fraud
-            </span>
-            <span className="meta-chip">
-              Card {maskCardNumber(selectedAlert.cc_num)}
-            </span>
-            {selectedAlert.category && (
-              <span className="meta-chip">{selectedAlert.category}</span>
-            )}
-          </div>
-          <h2>{selectedAlert.merchant}</h2>
-          <p className="detail-subtitle">
-            Transaction time: <strong>{selectedAlert.event_time}</strong> · Replay
-            batch: <strong>{selectedAlert.replay_batch}</strong> · Triggered{" "}
-            <strong>
-              {selectedAlert.matched_rule_count} rule
-              {selectedAlert.matched_rule_count === 1 ? "" : "s"}
-            </strong>
-          </p>
+        <div>
+          <span className="section-eyebrow">SELECTED INVESTIGATION</span>
+          <h2>{selectedAlert.trans_num} · Payment review</h2>
         </div>
+        <span className="rule-count-chip">
+          {selectedAlert.matched_rule_count} matched rule
+          {selectedAlert.matched_rule_count === 1 ? "" : "s"}
+        </span>
+      </div>
 
-        <div className="detail-amount-box">
-          <span className="detail-amount-label">Transaction Amount</span>
-          <span className="detail-amount-value">
+      {/* 4-Column Key Transaction Facts */}
+      <div className="detail-facts-grid">
+        <div className="detail-fact">
+          <span className="detail-fact-label">Payment amount</span>
+          <span className="detail-fact-value">
             {formatCurrency(selectedAlert.amount)}
           </span>
         </div>
-      </div>
-
-      {/* Plain-Language Rule Evidence */}
-      <div className="detail-section">
-        <div className="section-heading-row">
-          <h3>Why This Transaction Was Flagged</h3>
-          <span className="section-count-pill">
-            {selectedAlert.matched_rule_count} matched rule
-            {selectedAlert.matched_rule_count === 1 ? "" : "s"}
+        <div className="detail-fact">
+          <span className="detail-fact-label">Card reference</span>
+          <span className="detail-fact-value mono-cell">
+            {maskCardNumber(selectedAlert.cc_num)}
           </span>
         </div>
-
-        <div className="evidence-list">
-          {selectedAlert.rule_evidence.map((ev) => {
-            const metricItems = formatObservedMetricsList(ev.observed_metrics);
-            return (
-              <div key={ev.rule_id} className="evidence-card">
-                <div className="evidence-card-header">
-                  <strong>{formatRuleTitle(ev.rule_id)}</strong>
-                  <span className="window-chip">{ev.window} lookback window</span>
-                </div>
-
-                <p className="evidence-plain-summary">
-                  {describeRuleEvidencePlainly(ev, selectedAlert)}
-                </p>
-
-                <div className="metric-pills">
-                  {metricItems.map((item) => (
-                    <span key={item} className="metric-pill">
-                      {item}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+        <div className="detail-fact">
+          <span className="detail-fact-label">Merchant</span>
+          <span className="detail-fact-value">
+            {selectedAlert.merchant}
+            {selectedAlert.category ? (
+              <span className="detail-fact-sub"> · {selectedAlert.category}</span>
+            ) : null}
+          </span>
+        </div>
+        <div className="detail-fact">
+          <span className="detail-fact-label">Event time</span>
+          <span className="detail-fact-value mono-cell">
+            {selectedAlert.event_time}
+          </span>
         </div>
       </div>
 
-      {/* Simple Amount Comparison Graphic + Point-in-Time Snapshot */}
+      {/* Plain-Language Rule Evidence Callouts */}
+      <div className="evidence-list" aria-label="Rule evidence">
+        {selectedAlert.rule_evidence.map((ev) => {
+          const metricItems = formatObservedMetricsList(ev.observed_metrics);
+          return (
+            <div key={ev.rule_id} className="evidence-callout">
+              <div className="evidence-callout-header">
+                <strong>{formatRuleTitle(ev.rule_id)}</strong>
+                <span className="window-chip">{ev.window} window</span>
+              </div>
+              <p className="evidence-callout-text">
+                {describeRuleEvidencePlainly(ev, selectedAlert)}
+              </p>
+              <div className="metric-pills">
+                {metricItems.map((item) => (
+                  <span key={item} className="metric-pill">
+                    {item}
+                  </span>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Two-Column Section: Amount Comparison Graphic + Prior Card Activity Snapshot */}
       <div className="detail-two-col">
-        <div className="detail-section comparison-panel">
-          <div className="section-heading-row">
-            <h3>Amount vs. 14-Day Baseline &amp; Rule Threshold</h3>
-            <span className="section-caption">
-              Based on {selectedAlert.card_txn_count_14d} earlier 14d txn
+        <div className="detail-subsection">
+          <div className="subsection-header">
+            <h3>Amount comparison</h3>
+            <span className="subsection-caption">
+              {selectedAlert.card_txn_count_14d} earlier 14d payment
               {selectedAlert.card_txn_count_14d === 1 ? "" : "s"}
             </span>
           </div>
@@ -161,7 +165,7 @@ export function AlertDetailPane({
           >
             <div className="comparison-row">
               <div className="comparison-label-row">
-                <span className="comparison-label">Transaction Amount</span>
+                <span className="comparison-label">Transaction amount</span>
                 <span className="comparison-value">
                   {formatCurrency(selectedAlert.amount)}
                 </span>
@@ -193,11 +197,11 @@ export function AlertDetailPane({
 
             <div className="comparison-row">
               <div className="comparison-label-row">
-                <span className="comparison-label">14-Day Card Average</span>
+                <span className="comparison-label">14-day average</span>
                 <span className="comparison-value">
                   {selectedAlert.card_avg_amount_14d !== null
                     ? formatCurrency(selectedAlert.card_avg_amount_14d)
-                    : "No prior 14d txns"}
+                    : "No earlier 14d payments"}
                 </span>
               </div>
               <svg
@@ -228,12 +232,12 @@ export function AlertDetailPane({
             <div className="comparison-row">
               <div className="comparison-label-row">
                 <span className="comparison-label">
-                  Rule 2 Threshold (3&times; 14d Average)
+                  Rule threshold (3&times; 14d average)
                 </span>
                 <span className="comparison-value">
                   {selectedAlert.unusual_amount_threshold_14d !== null
                     ? formatCurrency(selectedAlert.unusual_amount_threshold_14d)
-                    : "No prior 14d txns"}
+                    : "No earlier 14d payments"}
                 </span>
               </div>
               <svg
@@ -262,59 +266,59 @@ export function AlertDetailPane({
             </div>
 
             <p className="comparison-footnote">
-              Rule 2 flags payments exceeding 3&times; the 14-day average when the card
-              has at least 5 earlier transactions in the 14-day window.
+              Compares the selected payment against this card&apos;s earlier 14-day
+              average and the 3&times; unusual-amount rule threshold.
             </p>
           </div>
         </div>
 
-        {/* Point-in-Time Historical Activity Metrics */}
-        <div className="detail-section">
-          <div className="section-heading-row">
-            <h3>Prior Card Activity Snapshot</h3>
-            <span className="section-caption">Strictly before event time</span>
+        <div className="detail-subsection">
+          <div className="subsection-header">
+            <h3>Earlier activity snapshot</h3>
+            <span className="subsection-caption">Prior to event time</span>
           </div>
 
           <div className="feature-grid">
             <div className="feature-card">
-              <span className="feature-label">1h Card Velocity</span>
+              <span className="feature-label">1h card velocity</span>
               <span className="feature-value">
-                {selectedAlert.card_txn_count_1h} earlier txn
+                {selectedAlert.card_txn_count_1h} earlier payment
                 {selectedAlert.card_txn_count_1h === 1 ? "" : "s"}
               </span>
-              <span className="feature-note">Rule 1 threshold: &ge; 3 in 1h</span>
+              <span className="feature-note">Rule 1 triggers at &ge; 3 in 1h</span>
             </div>
 
             <div className="feature-card">
-              <span className="feature-label">14d Card Volume</span>
+              <span className="feature-label">14d card baseline</span>
               <span className="feature-value">
-                {selectedAlert.card_txn_count_14d} earlier txn
-                {selectedAlert.card_txn_count_14d === 1 ? "" : "s"}
+                {selectedAlert.card_txn_count_14d} earlier · avg{" "}
+                {formatCurrency(selectedAlert.card_avg_amount_14d)}
               </span>
               <span className="feature-note">
-                14d avg: {formatCurrency(selectedAlert.card_avg_amount_14d)}
+                Rule 2 requires &ge; 5 payments in 14d
               </span>
             </div>
 
             <div className="feature-card">
-              <span className="feature-label">1h Same-Merchant Count</span>
+              <span className="feature-label">1h same-merchant count</span>
               <span className="feature-value">
-                {selectedAlert.card_merchant_txn_count_1h} earlier txn
+                {selectedAlert.card_merchant_txn_count_1h} earlier payment
                 {selectedAlert.card_merchant_txn_count_1h === 1 ? "" : "s"}
               </span>
               <span className="feature-note">At {selectedAlert.merchant}</span>
             </div>
 
             <div className="feature-card">
-              <span className="feature-label">1h Similar-Amount Count</span>
+              <span className="feature-label">1h similar-amount count</span>
               <span className="feature-value">
-                {selectedAlert.card_merchant_similar_amount_count_1h} earlier txn
+                {selectedAlert.card_merchant_similar_amount_count_1h} earlier
+                payment
                 {selectedAlert.card_merchant_similar_amount_count_1h === 1 ? "" : "s"}
               </span>
               <span className="feature-note">
-                &plusmn;10% band: [
-                {formatCurrency(selectedAlert.similar_amount_lower_bound)},{" "}
-                {formatCurrency(selectedAlert.similar_amount_upper_bound)}]
+                &plusmn;10% band:{" "}
+                {formatCurrency(selectedAlert.similar_amount_lower_bound)}–
+                {formatCurrency(selectedAlert.similar_amount_upper_bound)}
               </span>
             </div>
           </div>
@@ -322,17 +326,20 @@ export function AlertDetailPane({
       </div>
 
       {/* Strictly Earlier Card Transaction History */}
-      <div className="detail-section">
-        <div className="section-heading-row">
+      <div className="detail-subsection">
+        <div className="subsection-header">
           <div>
-            <h3>Earlier Card Activity (Before Alert Time)</h3>
-            <p className="section-subtitle">
-              Showing <strong>{history.length}</strong> loaded result
-              {history.length === 1 ? "" : "s"} (API cap: {historyLimit} rows) for
-              card <code>{maskCardNumber(selectedAlert.cc_num)}</code> prior to{" "}
-              <code>{selectedAlert.event_time}</code>
+            <h3>Earlier card history</h3>
+            <p className="subsection-subtitle">
+              Showing <strong>{history.length}</strong> loaded earlier payment
+              {history.length === 1 ? "" : "s"} for card{" "}
+              <code>{maskCardNumber(selectedAlert.cc_num)}</code> before{" "}
+              <code>{selectedAlert.event_time}</code> (limited to {historyLimit} rows)
             </p>
           </div>
+          <span className="loaded-count-badge">
+            Loaded results: {history.length} / {historyLimit} max
+          </span>
         </div>
 
         {isHistoryLoading && (
@@ -350,7 +357,7 @@ export function AlertDetailPane({
               className="btn-secondary"
               onClick={onRetryHistory}
             >
-              Retry History Query
+              Retry history query
             </button>
           </div>
         )}
@@ -370,12 +377,12 @@ export function AlertDetailPane({
             <table className="history-table">
               <thead>
                 <tr>
-                  <th>Event Time</th>
+                  <th>Event time</th>
                   <th>Merchant</th>
                   <th>Category</th>
+                  <th>Masked card</th>
                   <th className="num-col">Amount</th>
-                  <th>Card</th>
-                  <th>Replay Batch</th>
+                  <th>Replay batch</th>
                   <th>Transaction ID</th>
                 </tr>
               </thead>
@@ -385,10 +392,10 @@ export function AlertDetailPane({
                     <td className="mono-cell">{txn.event_time}</td>
                     <td className="merchant-cell">{txn.merchant}</td>
                     <td>{txn.category ?? "—"}</td>
+                    <td className="mono-cell">{maskCardNumber(txn.cc_num)}</td>
                     <td className="num-col amount-cell">
                       {formatCurrency(txn.amount)}
                     </td>
-                    <td className="mono-cell">{maskCardNumber(txn.cc_num)}</td>
                     <td className="mono-cell">{txn.replay_batch}</td>
                     <td className="mono-cell muted-cell">{txn.trans_num}</td>
                   </tr>
@@ -399,10 +406,10 @@ export function AlertDetailPane({
         )}
       </div>
 
-      {/* Expandable Technical Details: IDs, Table Names & Lineage */}
+      {/* Expandable Technical Details & Source Lineage */}
       <details className="technical-details">
         <summary className="technical-summary">
-          Technical IDs, Rule Definitions &amp; Table Lineage
+          Technical details and source lineage
         </summary>
         <div className="technical-body">
           <div className="meta-grid">
@@ -413,28 +420,34 @@ export function AlertDetailPane({
               </span>
             </div>
             <div className="meta-item">
-              <span className="meta-label">Ruleset Version</span>
+              <span className="meta-label">Replay batch</span>
+              <span className="meta-value">
+                <code>{selectedAlert.replay_batch}</code>
+              </span>
+            </div>
+            <div className="meta-item">
+              <span className="meta-label">Ruleset version</span>
               <span className="meta-value">
                 <code>{selectedAlert.ruleset_version}</code>
               </span>
             </div>
             <div className="meta-item">
-              <span className="meta-label">Source File &amp; Row</span>
+              <span className="meta-label">Source file &amp; row</span>
               <span className="meta-value">
                 <code>
                   {selectedAlert.source_file} (row {selectedAlert.source_row_index})
                 </code>
               </span>
             </div>
-            <div className="meta-item">
-              <span className="meta-label">Databricks Tables</span>
+            <div className="meta-item meta-item-wide">
+              <span className="meta-label">Unity Catalog tables</span>
               <span className="meta-value">
-                <code>workspace.sentinel_gold.alerts</code> ·{" "}
+                Alerts: <code>workspace.sentinel_gold.alerts</code> · History:{" "}
                 <code>workspace.sentinel_silver.transactions</code>
               </span>
             </div>
             <div className="meta-item meta-item-wide">
-              <span className="meta-label">Deterministic Alert ID (SHA-256)</span>
+              <span className="meta-label">Deterministic alert ID (SHA-256)</span>
               <span className="meta-value">
                 <code className="code-wrap">{selectedAlert.alert_id}</code>
               </span>
@@ -442,11 +455,11 @@ export function AlertDetailPane({
             {selectedAlert.rule_evidence.map((ev) => (
               <div key={ev.rule_id} className="meta-item meta-item-wide">
                 <span className="meta-label">
-                  Rule Spec · {ev.rule_id} ({ev.rule_version})
+                  Rule specification · {ev.rule_id} ({ev.rule_version})
                 </span>
                 <span className="meta-value">
                   <code className="code-wrap">
-                    threshold: {ev.threshold_definition} | raw metrics:{" "}
+                    threshold: {ev.threshold_definition} | observed_metrics:{" "}
                     {ev.observed_metrics}
                   </code>
                 </span>

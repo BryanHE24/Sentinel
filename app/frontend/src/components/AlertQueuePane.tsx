@@ -1,3 +1,4 @@
+import type { KeyboardEvent, ReactNode } from "react";
 import type { GoldAlert } from "../types/alerts";
 import {
   formatCurrency,
@@ -13,6 +14,7 @@ interface AlertQueuePaneProps {
   errorMessage: string | null;
   onSelectAlert: (alertId: string) => void;
   onRetry: () => void;
+  children?: ReactNode;
 }
 
 export function AlertQueuePane({
@@ -23,18 +25,29 @@ export function AlertQueuePane({
   errorMessage,
   onSelectAlert,
   onRetry,
+  children,
 }: AlertQueuePaneProps) {
+  function handleRowKeyDown(
+    event: KeyboardEvent<HTMLTableRowElement>,
+    alertId: string
+  ) {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onSelectAlert(alertId);
+    }
+  }
+
   return (
-    <section className="pane queue-pane" aria-label="Alert queue">
-      <div className="pane-header">
-        <div>
-          <h2>Alert Queue</h2>
-          <p className="pane-subtitle">
-            Showing <strong>{alerts.length}</strong> loaded result
-            {alerts.length === 1 ? "" : "s"} (API cap: {appliedLimit} rows)
-          </p>
-        </div>
+    <section className="panel queue-panel" aria-label="Review queue">
+      <div className="panel-header">
+        <h2>Review queue</h2>
+        <span className="loaded-count-badge">
+          Showing {alerts.length} loaded result{alerts.length === 1 ? "" : "s"} (limit{" "}
+          {appliedLimit})
+        </span>
       </div>
+
+      {children}
 
       {isLoading && (
         <div className="state-box" role="status">
@@ -48,7 +61,7 @@ export function AlertQueuePane({
           <p className="state-title">Unable to load alerts</p>
           <p className="state-detail">{errorMessage}</p>
           <button type="button" className="btn-secondary" onClick={onRetry}>
-            Retry Query
+            Retry query
           </button>
         </div>
       )}
@@ -63,52 +76,74 @@ export function AlertQueuePane({
       )}
 
       {!isLoading && !errorMessage && alerts.length > 0 && (
-        <ul className="alert-list">
-          {alerts.map((alert) => {
-            const isSelected = alert.alert_id === selectedAlertId;
-            return (
-              <li key={alert.alert_id}>
-                <button
-                  type="button"
-                  className={`alert-card ${isSelected ? "alert-card-selected" : ""}`}
-                  onClick={() => onSelectAlert(alert.alert_id)}
-                >
-                  <div className="alert-card-top">
-                    <span className="alert-merchant">{alert.merchant}</span>
-                    <span className="alert-amount">
-                      {formatCurrency(alert.amount)}
-                    </span>
-                  </div>
+        <>
+          <div className="queue-table-scroll">
+            <table className="queue-table" aria-label="Flagged alerts">
+              <thead>
+                <tr>
+                  <th>Event time</th>
+                  <th>Merchant</th>
+                  <th>Masked card</th>
+                  <th className="num-col">Amount</th>
+                  <th>Matched rules</th>
+                </tr>
+              </thead>
+              <tbody>
+                {alerts.map((alert) => {
+                  const isSelected = alert.alert_id === selectedAlertId;
+                  return (
+                    <tr
+                      key={alert.alert_id}
+                      tabIndex={0}
+                      aria-selected={isSelected}
+                      className={`queue-row ${
+                        isSelected ? "queue-row-selected" : ""
+                      }`}
+                      onClick={() => onSelectAlert(alert.alert_id)}
+                      onKeyDown={(e) => handleRowKeyDown(e, alert.alert_id)}
+                    >
+                      <td className="mono-cell">{alert.event_time}</td>
+                      <td>
+                        <div className="queue-merchant-primary">
+                          {alert.merchant}
+                        </div>
+                        <div className="queue-merchant-sub">
+                          {alert.trans_num}
+                          {alert.category ? ` · ${alert.category}` : ""}
+                        </div>
+                      </td>
+                      <td className="mono-cell">
+                        {maskCardNumber(alert.cc_num)}
+                      </td>
+                      <td className="num-col amount-cell">
+                        {formatCurrency(alert.amount)}
+                      </td>
+                      <td>
+                        <div className="rule-badge-row">
+                          {alert.matched_rule_ids.map((ruleId) => (
+                            <span key={ruleId} className="rule-badge">
+                              {formatRuleBadge(ruleId)}
+                            </span>
+                          ))}
+                          {alert.matched_rule_count > 1 && (
+                            <span className="rule-badge rule-badge-multi">
+                              Multi-rule ({alert.matched_rule_count})
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
-                  <div className="alert-card-middle">
-                    <span className="alert-time">{alert.event_time}</span>
-                    {alert.category && (
-                      <span className="category-tag">{alert.category}</span>
-                    )}
-                  </div>
-
-                  <div className="alert-card-meta">
-                    <span>Card {maskCardNumber(alert.cc_num)}</span>
-                    <span>Batch {alert.replay_batch}</span>
-                  </div>
-
-                  <div className="rule-badge-row">
-                    {alert.matched_rule_ids.map((ruleId) => (
-                      <span key={ruleId} className="rule-badge">
-                        {formatRuleBadge(ruleId)}
-                      </span>
-                    ))}
-                    {alert.matched_rule_count > 1 && (
-                      <span className="rule-badge rule-badge-multi">
-                        Multi-Rule ({alert.matched_rule_count})
-                      </span>
-                    )}
-                  </div>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+          <p className="queue-footer-note">
+            Select an alert to inspect its evidence. Flags indicate review, not
+            confirmed fraud.
+          </p>
+        </>
       )}
     </section>
   );
