@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 import { AlertDetailPane } from "./components/AlertDetailPane";
 import { AlertFiltersBar } from "./components/AlertFiltersBar";
@@ -7,6 +7,7 @@ import type {
   AlertHistoryResponse,
   AlertQueryFilters,
   AlertsListResponse,
+  AlertSummaryResponse,
   CardHistoryTransaction,
   GoldAlert,
 } from "./types/alerts";
@@ -17,6 +18,20 @@ const DEFAULT_FILTERS: AlertQueryFilters = {
   endDate: "",
   search: "",
   limit: 50,
+};
+
+interface ScopedSummaryState {
+  alertId: string | null;
+  result: AlertSummaryResponse | null;
+  isLoading: boolean;
+  error: string | null;
+}
+
+const INITIAL_SUMMARY_STATE: ScopedSummaryState = {
+  alertId: null,
+  result: null,
+  isLoading: false,
+  error: null,
 };
 
 function buildAlertsUrl(filters: AlertQueryFilters): string {
@@ -66,6 +81,17 @@ export function App() {
   const [isHistoryLoading, setIsHistoryLoading] = useState<boolean>(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
 
+  const [summaryState, setSummaryState] =
+    useState<ScopedSummaryState>(INITIAL_SUMMARY_STATE);
+  const summaryAbortRef = useRef<AbortController | null>(null);
+
+  // Abort any in-flight AI summary request if selectedAlertId changes or component unmounts.
+  useEffect(() => {
+    return () => {
+      summaryAbortRef.current?.abort();
+    };
+  }, [selectedAlertId]);
+
   // Load alerts whenever appliedFilters or alertsReloadToken changes.
   useEffect(() => {
     const controller = new AbortController();
@@ -98,12 +124,16 @@ export function App() {
           if (currentId && loadedAlerts.some((a) => a.alert_id === currentId)) {
             return currentId;
           }
+          summaryAbortRef.current?.abort();
+          setSummaryState(INITIAL_SUMMARY_STATE);
           return loadedAlerts[0]?.alert_id ?? null;
         });
       } catch (error) {
         if (controller.signal.aborted) {
           return;
         }
+        summaryAbortRef.current?.abort();
+        setSummaryState(INITIAL_SUMMARY_STATE);
         setAlerts([]);
         setSelectedAlertId(null);
         setAlertsError(
@@ -255,11 +285,88 @@ export function App() {
 
   function handleSelectAlert(alertId: string) {
     if (alertId !== selectedAlertId) {
+      summaryAbortRef.current?.abort();
+      setSummaryState(INITIAL_SUMMARY_STATE);
       setHistory([]);
       setHistoryError(null);
       setSelectedAlertId(alertId);
     }
   }
+
+  async function handleGenerateSummary() {
+    if (!selectedAlertId) {
+      return;
+    }
+
+    const targetAlertId = selectedAlertId;
+    summaryAbortRef.current?.abort();
+    const controller = new AbortController();
+    summaryAbortRef.current = controller;
+
+    setSummaryState({
+      alertId: targetAlertId,
+      result: null,
+      isLoading: true,
+      error: null,
+    });
+
+    try {
+      const response = await fetch(
+        `/api/alerts/${encodeURIComponent(targetAlertId)}/summary`,
+        {
+          method: "POST",
+          signal: controller.signal,
+        }
+      );
+
+      if (!response.ok) {
+        const message = await readErrorMessage(
+          response,
+          "Failed to generate AI evidence summary"
+        );
+        throw new Error(message);
+      }
+
+      const data = (await response.json()) as AlertSummaryResponse;
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      setSummaryState((current) => {
+        if (current.alertId !== targetAlertId) {
+          return current;
+        }
+        return {
+          alertId: targetAlertId,
+          result: data,
+          isLoading: false,
+          error: null,
+        };
+      });
+    } catch (error) {
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      setSummaryState((current) => {
+        if (current.alertId !== targetAlertId) {
+          return current;
+        }
+        return {
+          alertId: targetAlertId,
+          result: null,
+          isLoading: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Failed to generate AI evidence summary.",
+        };
+      });
+    }
+  }
+
+  const isCurrentSummaryAlert =
+    selectedAlertId !== null && summaryState.alertId === selectedAlertId;
 
   return (
     <div className="app-layout">
@@ -419,6 +526,12 @@ export function App() {
             isHistoryLoading={isHistoryLoading}
             historyError={historyError}
             onRetryHistory={() => setHistoryReloadToken((n) => n + 1)}
+            summaryResult={isCurrentSummaryAlert ? summaryState.result : null}
+            isSummaryLoading={isCurrentSummaryAlert ? summaryState.isLoading : false}
+            summaryError={isCurrentSummaryAlert ? summaryState.error : null}
+            onGenerateSummary={() => {
+              void handleGenerateSummary();
+            }}
           />
         </main>
       </div>

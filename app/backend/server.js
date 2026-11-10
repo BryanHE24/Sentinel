@@ -2,7 +2,11 @@ import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { checkAiConnection } from "./ai.js";
+import {
+  checkAiConnection,
+  generateAlertEvidenceSummary,
+  SUMMARY_HISTORY_LIMIT
+} from "./ai.js";
 import {
   checkSqlConnection,
   fetchAlertHistory,
@@ -121,6 +125,60 @@ app.get("/api/alerts/:alertId/history", async (request, response) => {
       error,
       response
     );
+  }
+});
+
+// Read-only AI evidence summary for a selected alert and its limited earlier card history.
+app.post("/api/alerts/:alertId/summary", async (request, response) => {
+  response.set("Cache-Control", "no-store");
+
+  try {
+    const result = await fetchAlertHistory(request.params.alertId, {
+      limit: SUMMARY_HISTORY_LIMIT
+    });
+
+    if (!result) {
+      return response.status(404).json({
+        status: "not_found",
+        message: "Alert not found in workspace.sentinel_gold.alerts."
+      });
+    }
+
+    const aiResult = await generateAlertEvidenceSummary(
+      result.alert,
+      result.history,
+      { historyLimit: result.limit }
+    );
+
+    return response.json({
+      status: "ok",
+      alertId: result.alert.alert_id,
+      model: aiResult.model,
+      historyWindow: "event_time < alert.event_time",
+      historyCount: result.history.length,
+      historyLimit: result.limit,
+      summary: aiResult.summary
+    });
+  } catch (error) {
+    if (error?.statusCode === 400) {
+      return response.status(400).json({
+        status: "invalid_request",
+        message: error.message
+      });
+    }
+
+    console.error("POST /api/alerts/:alertId/summary failed:", error);
+
+    const isConfigurationError =
+      typeof error?.message === "string" &&
+      error.message.startsWith("Missing configuration:");
+
+    return response.status(503).json({
+      status: "unavailable",
+      message: isConfigurationError
+        ? error.message
+        : "Unable to generate AI evidence summary. Check SQL and AI model endpoint configuration."
+    });
   }
 });
 

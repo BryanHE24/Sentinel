@@ -1,4 +1,8 @@
-import type { CardHistoryTransaction, GoldAlert } from "../types/alerts";
+import type {
+  AlertSummaryResponse,
+  CardHistoryTransaction,
+  GoldAlert,
+} from "../types/alerts";
 import {
   describeRuleEvidencePlainly,
   formatCurrency,
@@ -14,6 +18,10 @@ interface AlertDetailPaneProps {
   isHistoryLoading: boolean;
   historyError: string | null;
   onRetryHistory: () => void;
+  summaryResult: AlertSummaryResponse | null;
+  isSummaryLoading: boolean;
+  summaryError: string | null;
+  onGenerateSummary: () => void;
 }
 
 const SVG_BAR_MAX_WIDTH = 320;
@@ -33,6 +41,10 @@ export function AlertDetailPane({
   isHistoryLoading,
   historyError,
   onRetryHistory,
+  summaryResult,
+  isSummaryLoading,
+  summaryError,
+  onGenerateSummary,
 }: AlertDetailPaneProps) {
   if (!selectedAlert) {
     return (
@@ -73,6 +85,11 @@ export function AlertDetailPane({
   const txnBarWidth = computeBarWidth(txnAmountNum, maxComparisonAmount);
   const avgBarWidth = computeBarWidth(avg14dNum, maxComparisonAmount);
   const thresholdBarWidth = computeBarWidth(threshold14dNum, maxComparisonAmount);
+
+  const activeSummary =
+    summaryResult && summaryResult.alertId === selectedAlert.alert_id
+      ? summaryResult
+      : null;
 
   return (
     <section
@@ -145,6 +162,65 @@ export function AlertDetailPane({
             </div>
           );
         })}
+      </div>
+
+      {/* On-Demand AI Evidence Summary */}
+      <div className="detail-subsection ai-summary-section">
+        <div className="subsection-header">
+          <div>
+            <h3>AI evidence summary</h3>
+            <p className="subsection-subtitle">
+              Summarizes the selected alert and up to 10 strictly earlier card
+              payments (masked card, fraud labels excluded).
+            </p>
+          </div>
+          <div className="ai-summary-actions">
+            <span className="ai-badge">AI-generated · Analyst review required</span>
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={isSummaryLoading}
+              onClick={onGenerateSummary}
+            >
+              {isSummaryLoading
+                ? "Generating summary…"
+                : "Generate evidence summary"}
+            </button>
+          </div>
+        </div>
+
+        {isSummaryLoading && (
+          <div className="state-box" role="status">
+            <p className="state-title">Generating AI evidence summary…</p>
+            <p className="state-detail">
+              Retrieving selected alert and limited earlier card history on the
+              server and querying the configured Databricks AI model.
+            </p>
+          </div>
+        )}
+
+        {!isSummaryLoading && summaryError && (
+          <div className="state-box state-error" role="alert">
+            <p className="state-title">Unable to generate evidence summary</p>
+            <p className="state-detail">{summaryError}</p>
+          </div>
+        )}
+
+        {!isSummaryLoading && !summaryError && activeSummary && (
+          <div className="ai-summary-card" role="region" aria-label="AI-generated evidence summary">
+            <div className="ai-summary-meta">
+              <span className="ai-badge">
+                AI-generated ({activeSummary.model})
+              </span>
+              <span className="subsection-caption">
+                Based on selected alert and {activeSummary.historyCount} loaded
+                earlier payment{activeSummary.historyCount === 1 ? "" : "s"} (limit{" "}
+                {activeSummary.historyLimit}) · Does not establish fraud
+              </span>
+            </div>
+            <div className="ai-summary-text">{activeSummary.summary}</div>
+          </div>
+        )}
       </div>
 
       {/* Two-Column Section: Amount Comparison Graphic + Prior Card Activity Snapshot */}

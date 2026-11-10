@@ -17,7 +17,7 @@ Prioritize understandable implementation and small steps.
 
 ## Current Objective
 
-Phase 2 is **complete and verified**, and Step 3A backend endpoints (`GET /api/alerts` and `GET /api/alerts/:alertId/history`) are **confirmed working against live Databricks SQL**. Build and verify the Phase 3 React + TypeScript investigation UI (`app/frontend/src/`) on `feat/phase-3-investigation-ui`.
+Phase 2 is **complete and verified**, and the Phase 3 **read-only investigation UI and API** (`GET /api/alerts`, `GET /api/alerts/:alertId/history`, and `app/frontend/src/`) are **complete and verified** in live browser checks on `feat/phase-3-investigation-ui`. Step 3E (**AI evidence summaries** via `POST /api/alerts/:alertId/summary`) is implemented and verified locally, pending live Databricks AI Gateway verification. Analyst decision saving remains pending.
 
 ## Development Workflow
 
@@ -116,8 +116,8 @@ The assessment filename above reflects the existing repository spelling.
   - Preserved exact decimal strings (`CAST(CAST(... AS DECIMAL(18, 2)) AS STRING)`) and timezone-unspecified timestamp strings (`DATE_FORMAT(event_time, 'yyyy-MM-dd HH:mm:ss')`) in SQL projections and JSON serialization; excluded fraud labels completely.
   - Confirmed live backend execution against Databricks SQL (`workspace.sentinel_gold.alerts` and `workspace.sentinel_silver.transactions`).
 
-### Steps 3B–3D — React + TypeScript Investigation UI (`app/frontend/src/`)
-- **Implemented & Verified Locally (`npm run lint` & `npm run build` Passed)**:
+### Steps 3B–3D — Read-Only React + TypeScript Investigation UI (`app/frontend/src/`) — Completed and Verified
+- **Implemented & Verified (`npm run lint`, `npm run build`, and Live Browser Checks Passed)**:
   - **Visual & Layout Adaptation (`app/frontend/src/index.css`, `app/frontend/src/App.css`, `app/frontend/src/App.tsx`)**:
     - Adapted the Sentinel Payment Intelligence template: deep navy sidebar (`#0d1526`), pale cool gray background (`#f8fafc`), crisp white panels (`#ffffff`), thin 1px borders (`#e2e8f0`), blue accents (`#2563eb`), and clean typography without any non-functional navigation items (`Overview`, `My Cases`), priorities, workflow statuses, AI copilot, analyst notes, or `UTC` timestamp labels.
     - Functional sidebar rule-filter views (`Alert queue (all)`, `Payment velocity (1h)`, `Unusual amount (14d)`, `Similar payments (1h)`, `Multi-rule (2+)`) and top summary cards explicitly describing **loaded results** bounded by the API result limit.
@@ -129,11 +129,23 @@ The assessment filename above reflects the existing repository spelling.
     - Selectable review queue table (`Event time`, `Merchant`, `Masked card`, `Amount`, `Matched rules`) with keyboard navigation, active blue row indicator, loading/error/empty states, and explicit loaded-result count badge.
   - **Selected Investigation Panel** (`app/frontend/src/components/AlertDetailPane.tsx`):
     - Displays 4-column key payment facts (`Payment amount`, `Card reference`, `Merchant`, `Event time` without `UTC` labeling), warm amber left-bordered plain-language rule evidence callouts with metric pills, horizontal SVG amount comparison graphic (`Transaction amount`, `14-day average`, `Rule threshold (3× 14d average)`), 4-card earlier activity snapshot, strictly earlier card history table (`event_time < alert.event_time`) clearly labeled as limited results, and an expandable `<details>` section for technical IDs, rule specifications, and Unity Catalog source lineage.
-  - **Local Verification Passed**:
+  - **Local Build Verification Passed**:
     - `npm run lint` (`eslint .`): `0` errors, `0` warnings.
     - `npm run build` (`tsc -b && vite build`): `0` errors; production bundle built in `app/frontend/dist/`.
-- **Pending Interactive Browser Verification**:
-  - End-to-end visual and interactive review in the browser against the running Express/Databricks Apps backend (`GET /api/alerts` and `GET /api/alerts/:alertId/history`).
+  - **Confirmed Live Browser Verification**:
+    - Alert selection updates transaction details, the amount comparison chart, and earlier card history.
+    - Payment velocity (`RULE_01_CARD_VELOCITY_1H`) filtering works as expected.
+    - No-match search clears both the review queue and the selected investigation details.
+    - `Reset` restores the alerts queue and default selection.
+
+### Step 3E — On-Demand AI Evidence Summaries (`app/backend/ai.js`, `app/backend/server.js`, `app/frontend/src/`)
+- **Implemented & Verified Locally**:
+  - Reused the existing Databricks OAuth + AI Gateway chat completion connection in `app/backend/ai.js` (`requestAiChatCompletion`, `maskCardIdentifier`, `buildAlertEvidencePayload`, `generateAlertEvidenceSummary`).
+  - Added `POST /api/alerts/:alertId/summary` in `app/backend/server.js`, which retrieves the selected alert and up to `10` strictly earlier card transactions (`event_time < alert.event_time`) on the server via `fetchAlertHistory`, masks card identifiers, excludes fraud labels, treats merchant/source text strictly as data rather than instructions, and requests a short plain-text explanation covering why the transaction was flagged, supporting facts/thresholds, and missing context/limitations.
+  - Added the `Generate evidence summary` button and plain-text summary box in `app/frontend/src/components/AlertDetailPane.tsx` and `app/frontend/src/App.tsx` with loading, error, and `AI-generated` labels, clearing state and aborting any in-flight request when alert selection changes.
+- **Pending Live Databricks AI Check & Subsequent Steps**:
+  - Live test of `POST /api/alerts/:alertId/summary` and the `Generate evidence summary` button against the configured Databricks AI Gateway endpoint (`SENTINEL_AI_MODEL`).
+  - Analyst decision / case review saving (`Save review` / disposition persistence).
 
 ## Established Decisions
 
@@ -163,8 +175,8 @@ The assessment filename above reflects the existing repository spelling.
 
 ## Next Steps
 
-1. Run interactive browser verification of the Phase 3 investigation UI (`app/frontend/src/`) connected to the live backend (`GET /api/alerts` and `GET /api/alerts/:alertId/history`).
-2. Review any UI polish feedback or proceed to Phase 4 planning when ready.
+1. Test `POST /api/alerts/:alertId/summary` and the `Generate evidence summary` button against the live Databricks AI Gateway endpoint.
+2. Plan and implement analyst decision saving when ready.
 
 ## Verification Limitations
 

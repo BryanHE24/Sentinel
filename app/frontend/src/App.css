@@ -712,6 +712,56 @@
   color: var(--text-h);
 }
 
+/* On-Demand AI Evidence Summary */
+.ai-summary-section {
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+}
+
+.ai-summary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-badge {
+  font-size: 11px;
+  font-weight: 650;
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  color: var(--accent);
+}
+
+.ai-summary-card {
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: 1px solid var(--accent-border);
+  border-left: 3px solid var(--accent);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ai-summary-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-summary-text {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-h);
+  white-space: pre-wrap;
+}
+
 /* Two-Column Section: Amount Comparison + Activity Snapshot */
 .detail-two-col {
   display: grid;

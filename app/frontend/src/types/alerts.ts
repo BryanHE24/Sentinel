@@ -81,3 +81,14 @@ export interface AlertHistoryResponse {
   historyCount: number;
   history: CardHistoryTransaction[];
 }
+
+export interface AlertSummaryResponse {
+  status: string;
+  alertId: string;
+  model: string;
+  historyWindow: string;
+  historyCount: number;
+  historyLimit: number;
+  summary: string;
+}
+
