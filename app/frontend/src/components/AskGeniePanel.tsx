@@ -1,5 +1,6 @@
 import { type FormEvent, useState } from "react";
 import type { GenieAskResponse } from "../types/alerts";
+import { SafeMarkdownText } from "./SafeMarkdownText";
 
 async function readGenieError(
   response: Response,
@@ -48,7 +49,7 @@ export function AskGeniePanel() {
       if (!response.ok) {
         const message = await readGenieError(
           response,
-          "Failed to query Databricks Genie"
+          "Failed to query monitoring data"
         );
         throw new Error(message);
       }
@@ -61,7 +62,7 @@ export function AskGeniePanel() {
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : "Failed to query Databricks Genie."
+          : "Failed to query monitoring data."
       );
     } finally {
       setIsLoading(false);
@@ -75,18 +76,24 @@ export function AskGeniePanel() {
     setQuestion("");
   }
 
+  const hasSupportingData =
+    genieResult !== null &&
+    (genieResult.columns.length > 0 || Boolean(genieResult.sql));
+
   return (
-    <section className="panel genie-panel" aria-label="Ask Genie">
+    <section className="panel genie-panel" aria-label="Ask about the data">
       <div className="panel-header">
         <div>
-          <h2>Ask Genie</h2>
+          <h2>Ask about the data</h2>
           <p className="subsection-subtitle">
-            Ask natural-language questions about Sentinel monitoring data via the
-            Databricks Genie Conversation API.
+            Ask natural-language questions about alerts, rules, and transaction
+            patterns across the monitoring tables.
           </p>
         </div>
         <div className="genie-header-badges">
-          <span className="ai-badge">AI-generated · Databricks Genie</span>
+          <span className="ai-subtle-label">
+            AI-generated · Review against evidence
+          </span>
           {conversationId && (
             <button
               type="button"
@@ -107,13 +114,13 @@ export function AskGeniePanel() {
           maxLength={500}
           placeholder={
             conversationId
-              ? "Ask a follow-up question in this conversation..."
+              ? "Ask a follow-up question..."
               : "Ask a question (e.g., How many alerts matched each rule by replay batch?)..."
           }
           value={question}
           disabled={isLoading}
           onChange={(e) => setQuestion(e.target.value)}
-          aria-label="Question for Databricks Genie"
+          aria-label="Ask a question about the monitoring data"
         />
         <button
           type="submit"
@@ -121,7 +128,7 @@ export function AskGeniePanel() {
           disabled={isLoading || !question.trim()}
         >
           {isLoading
-            ? "Asking Genie…"
+            ? "Loading answer…"
             : conversationId
               ? "Ask follow-up"
               : "Ask"}
@@ -130,17 +137,16 @@ export function AskGeniePanel() {
 
       {isLoading && (
         <div className="state-box" role="status">
-          <p className="state-title">Waiting for Databricks Genie…</p>
+          <p className="state-title">Preparing answer…</p>
           <p className="state-detail">
-            Submitting your question, waiting for query completion, and retrieving
-            available results.
+            Running the query and retrieving available results.
           </p>
         </div>
       )}
 
       {!isLoading && errorMessage && (
         <div className="state-box state-error" role="alert">
-          <p className="state-title">Genie request failed</p>
+          <p className="state-title">Unable to complete question</p>
           <p className="state-detail">{errorMessage}</p>
         </div>
       )}
@@ -148,69 +154,76 @@ export function AskGeniePanel() {
       {!isLoading && genieResult && (
         <div className="genie-response-card">
           <div className="genie-response-meta">
-            <span className="ai-badge">AI-generated answer</span>
+            <span className="ai-subtle-label">
+              AI-generated · Review against evidence
+            </span>
             <span className="subsection-caption">
               Question: <strong>{genieResult.question}</strong>
             </span>
-            <span className="loaded-count-badge">
-              Conversation: <code>{genieResult.conversationId}</code>
-            </span>
           </div>
 
-          <div className="genie-answer-text">{genieResult.answer}</div>
+          <SafeMarkdownText content={genieResult.answer} />
 
-          {genieResult.columns.length > 0 && (
-            <div className="genie-results-section">
-              <div className="subsection-header">
-                <h3>Query results (AI-generated query)</h3>
-                <span className="loaded-count-badge">
-                  Showing {genieResult.displayedRowCount} of{" "}
-                  {genieResult.totalRowCount} row
-                  {genieResult.totalRowCount === 1 ? "" : "s"} (capped at{" "}
-                  {genieResult.rowCap} rows)
-                </span>
-              </div>
-
-              {genieResult.rows.length === 0 ? (
-                <p className="subsection-subtitle">
-                  Query completed with 0 rows returned.
-                </p>
-              ) : (
-                <div className="table-wrapper">
-                  <table className="history-table">
-                    <thead>
-                      <tr>
-                        {genieResult.columns.map((col) => (
-                          <th key={col}>{col}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {genieResult.rows.map((row, rowIndex) => (
-                        <tr key={`row-${rowIndex}`}>
-                          {genieResult.columns.map((col, colIndex) => (
-                            <td key={`${col}-${colIndex}`} className="mono-cell">
-                              {row[colIndex] ?? "—"}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-
-          {genieResult.sql && (
-            <details className="technical-details">
+          {hasSupportingData && (
+            <details className="technical-details supporting-data-details">
               <summary className="technical-summary">
-                Generated SQL (AI-generated by Genie)
+                View supporting data
               </summary>
-              <div className="technical-body">
-                <pre className="genie-sql-pre">
-                  <code>{genieResult.sql}</code>
-                </pre>
+              <div className="technical-body supporting-data-body">
+                {genieResult.columns.length > 0 && (
+                  <div className="genie-results-section">
+                    <div className="subsection-header">
+                      <h3>Query results</h3>
+                      <span className="loaded-count-badge">
+                        Showing {genieResult.displayedRowCount} of{" "}
+                        {genieResult.totalRowCount} row
+                        {genieResult.totalRowCount === 1 ? "" : "s"} (capped at{" "}
+                        {genieResult.rowCap} rows)
+                      </span>
+                    </div>
+
+                    {genieResult.rows.length === 0 ? (
+                      <p className="subsection-subtitle">
+                        Query completed with 0 rows returned.
+                      </p>
+                    ) : (
+                      <div className="table-wrapper">
+                        <table className="history-table">
+                          <thead>
+                            <tr>
+                              {genieResult.columns.map((col) => (
+                                <th key={col}>{col}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {genieResult.rows.map((row, rowIndex) => (
+                              <tr key={`row-${rowIndex}`}>
+                                {genieResult.columns.map((col, colIndex) => (
+                                  <td
+                                    key={`${col}-${colIndex}`}
+                                    className="mono-cell"
+                                  >
+                                    {row[colIndex] ?? "—"}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {genieResult.sql && (
+                  <div className="genie-sql-section">
+                    <span className="meta-label">Generated SQL</span>
+                    <pre className="genie-sql-pre">
+                      <code>{genieResult.sql}</code>
+                    </pre>
+                  </div>
+                )}
               </div>
             </details>
           )}

@@ -10,6 +10,7 @@ import {
   formatRuleTitle,
   maskCardNumber,
 } from "../utils/formatters";
+import { SafeMarkdownText } from "./SafeMarkdownText";
 
 interface AlertDetailPaneProps {
   selectedAlert: GoldAlert | null;
@@ -164,18 +165,20 @@ export function AlertDetailPane({
         })}
       </div>
 
-      {/* On-Demand AI Evidence Summary */}
+      {/* On-Demand Evidence Summary */}
       <div className="detail-subsection ai-summary-section">
         <div className="subsection-header">
           <div>
-            <h3>AI evidence summary</h3>
+            <h3>Evidence summary</h3>
             <p className="subsection-subtitle">
               Summarizes the selected alert and up to 10 strictly earlier card
               payments (masked card, fraud labels excluded).
             </p>
           </div>
           <div className="ai-summary-actions">
-            <span className="ai-badge">AI-generated · Analyst review required</span>
+            <span className="ai-subtle-label">
+              AI-generated · Review against evidence
+            </span>
             <button
               type="button"
               className="btn-primary"
@@ -191,10 +194,10 @@ export function AlertDetailPane({
 
         {isSummaryLoading && (
           <div className="state-box" role="status">
-            <p className="state-title">Generating AI evidence summary…</p>
+            <p className="state-title">Generating evidence summary…</p>
             <p className="state-detail">
-              Retrieving selected alert and limited earlier card history on the
-              server and querying the configured Databricks AI model.
+              Retrieving the selected alert and limited earlier card history to
+              prepare the explanation.
             </p>
           </div>
         )}
@@ -207,10 +210,14 @@ export function AlertDetailPane({
         )}
 
         {!isSummaryLoading && !summaryError && activeSummary && (
-          <div className="ai-summary-card" role="region" aria-label="AI-generated evidence summary">
+          <div
+            className="ai-summary-card"
+            role="region"
+            aria-label="Evidence summary"
+          >
             <div className="ai-summary-meta">
-              <span className="ai-badge">
-                AI-generated ({activeSummary.model})
+              <span className="ai-subtle-label">
+                AI-generated · Review against evidence
               </span>
               <span className="subsection-caption">
                 Based on selected alert and {activeSummary.historyCount} loaded
@@ -218,7 +225,7 @@ export function AlertDetailPane({
                 {activeSummary.historyLimit}) · Does not establish fraud
               </span>
             </div>
-            <div className="ai-summary-text">{activeSummary.summary}</div>
+            <SafeMarkdownText content={activeSummary.summary} />
           </div>
         )}
       </div>
