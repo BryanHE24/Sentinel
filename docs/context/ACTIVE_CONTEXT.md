@@ -2,7 +2,7 @@
 
 ## Session Metadata
 
-- Last updated: 2026-11-09
+- Last updated: 2026-11-10
 - Active role: QA Engineer
 - Mode: VERIFICATION
 
@@ -17,7 +17,7 @@ Prioritize understandable implementation and small steps.
 
 ## Current Objective
 
-Phase 2 is **complete and verified**, and the Phase 3 **read-only investigation UI and API** (`GET /api/alerts`, `GET /api/alerts/:alertId/history`, and `app/frontend/src/`) are **complete and verified** in live browser checks on `feat/phase-3-investigation-ui`. Step 3E (**AI evidence summaries** via `POST /api/alerts/:alertId/summary`) and Step 3F (**Ask Genie panel** via `POST /api/genie/ask`) are implemented and verified locally, pending live Databricks AI Gateway and Genie Conversation API verification. Analyst decision saving remains pending.
+Phase 2 is **complete and verified**, and the Phase 3 **read-only investigation UI and API** (`GET /api/alerts`, `GET /api/alerts/:alertId/history`, and `app/frontend/src/`) are **complete and verified** in live browser checks on `feat/phase-3-investigation-ui`. Step 3E (**AI evidence summaries** via `POST /api/alerts/:alertId/summary`), Step 3F (**Ask Genie panel** via `POST /api/genie/ask`), and Step 3G (**Analyst review persistence** via `PUT /api/alerts/:alertId/review` against `workspace.sentinel_gold.alert_reviews`) are implemented and verified locally, pending live Databricks AI Gateway, Genie Conversation API, and review persistence testing.
 
 ## Development Workflow
 
@@ -148,11 +148,21 @@ The assessment filename above reflects the existing repository spelling.
 - **Implemented & Verified Locally**:
   - Configured `SENTINEL_GENIE_SPACE_ID` via `valueFrom: sentinel-genie` in `app/app.yaml` (never hardcoded).
   - Reused `fetchDatabricksWorkspaceAuth` in `app/backend/genie.js` and implemented `askSentinelGenie` + `POST /api/genie/ask` (`app/backend/server.js`): starts a Genie conversation (`/api/2.0/genie/spaces/{spaceId}/start-conversation`) or sends a follow-up message (`/conversations/{conversationId}/messages`), polls message status with a bounded timeout (`60s`), and retrieves the plain-text answer, generated SQL, and available attachment query results (capped at `20` displayed rows) without executing generated SQL separately.
-  - Added `app/frontend/src/components/AskGeniePanel.tsx` (separate from the selected-alert summary) with question input, `Ask` / `Ask follow-up` button, `New conversation` reset, loading/error states, `AI-generated` labels, plain-text answer, capped results table, and expandable generated SQL.
-- **Pending Live Databricks AI & Genie Checks & Subsequent Steps**:
+  - Added `app/frontend/src/components/AskGeniePanel.tsx` (separate from the selected-alert summary) with question input, `Ask` / `Ask follow-up` button, `New conversation` reset, loading/error states, `AI-generated · Review against evidence` label, safe basic Markdown answer (`SafeMarkdownText.tsx`), and collapsible `View supporting data` containing generated SQL and capped query results.
+
+### Step 3G — Analyst Review Persistence (`workspace.sentinel_gold.alert_reviews`, `app/backend/sql.js`, `app/backend/server.js`, `app/frontend/src/`)
+- **Implemented & Verified Locally (Pending Live Persistence Testing)**:
+  - **Backend (`app/backend/sql.js`, `app/backend/server.js`)**:
+    - Joined `workspace.sentinel_gold.alerts` with a deduplicated subquery on `workspace.sentinel_gold.alert_reviews` (`QUALIFY ROW_NUMBER() OVER (PARTITION BY LOWER(alert_id) ORDER BY updated_at DESC) = 1`) in `fetchGoldAlerts` and `fetchAlertHistory` so alert/history reads always remain at one row per transaction and default unsaved alerts to `review_status = 'Needs review'`, `review_notes = ''`, and `review_updated_at = null`.
+    - Added `parseAlertReviewInput` and `saveAlertReview` (`PUT /api/alerts/:alertId/review`), validating 64-hex `alertId`, `reviewStatus` (`'Needs review'`, `'In review'`, `'Closed'`), and `reviewNotes` (maximum `2,000` characters), verifying that the alert exists in `workspace.sentinel_gold.alerts` (`404` if missing), executing a parameterized `MERGE INTO workspace.sentinel_gold.alert_reviews`, and returning the saved review record.
+  - **Frontend (`app/frontend/src/`)**:
+    - Added the `Review status` badge column in the selectable Review queue table (`AlertQueuePane.tsx`).
+    - Added the **Analyst decision** section in `AlertDetailPane.tsx` with `Review status` select (`Needs review`, `In review`, `Closed`), `Investigation notes` textarea (`2,000` character counter), `Save review` button, last-saved timestamp badge, `Unsaved changes` indicator, save-success message, and error state.
+    - Scoped draft edits and save requests (`AbortController`) to the selected `alert_id` in `App.tsx` so switching alerts cannot display or overwrite another alert's review, and added unsaved-edit confirmation (`window.confirm` + `beforeunload`) before discarding unsaved changes.
+- **Pending Live Databricks Checks**:
+  - Live persistence test of `PUT /api/alerts/:alertId/review` and `GET /api/alerts` against `workspace.sentinel_gold.alert_reviews`.
   - Live test of `POST /api/alerts/:alertId/summary` against the configured Databricks AI Gateway endpoint (`SENTINEL_AI_MODEL`).
   - Live test of `POST /api/genie/ask` (initial question and follow-up question) against the configured Databricks Genie space (`SENTINEL_GENIE_SPACE_ID` from `sentinel-genie`).
-  - Analyst decision / case review saving (`Save review` / disposition persistence).
 
 ## Established Decisions
 
@@ -182,8 +192,8 @@ The assessment filename above reflects the existing repository spelling.
 
 ## Next Steps
 
-1. Test `POST /api/alerts/:alertId/summary` and `POST /api/genie/ask` (initial + follow-up questions) against the live Databricks AI Gateway and Genie Conversation API endpoints.
-2. Plan and implement analyst decision saving when ready.
+1. Run live persistence testing for `PUT /api/alerts/:alertId/review` and `GET /api/alerts` against `workspace.sentinel_gold.alert_reviews` in Databricks.
+2. Run live browser verification for `POST /api/alerts/:alertId/summary` and `POST /api/genie/ask` (initial + follow-up questions) against the Databricks AI Gateway and Genie Conversation API endpoints.
 
 ## Verification Limitations
 

@@ -1,3 +1,5 @@
+export type ReviewStatus = "Needs review" | "In review" | "Closed";
+
 export interface RuleEvidence {
   rule_id: string;
   rule_version: string;
@@ -30,6 +32,23 @@ export interface GoldAlert {
   matched_rule_ids: string[];
   matched_rule_versions: string[];
   rule_evidence: RuleEvidence[];
+  review_status: ReviewStatus;
+  review_notes: string;
+  review_updated_at: string | null;
+}
+
+export interface AlertReviewRecord {
+  alert_id: string;
+  review_status: ReviewStatus;
+  review_notes: string;
+  review_updated_at: string | null;
+}
+
+export interface AlertReviewSaveResponse {
+  status: string;
+  source: string;
+  table: string;
+  review: AlertReviewRecord;
 }
 
 export interface CardHistoryTransaction {
@@ -107,5 +126,3 @@ export interface GenieAskResponse {
   totalRowCount: number;
   rowCap: number;
 }
-
-

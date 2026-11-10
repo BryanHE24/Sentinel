@@ -1,7 +1,9 @@
+import type { FormEvent } from "react";
 import type {
   AlertSummaryResponse,
   CardHistoryTransaction,
   GoldAlert,
+  ReviewStatus,
 } from "../types/alerts";
 import {
   describeRuleEvidencePlainly,
@@ -23,9 +25,23 @@ interface AlertDetailPaneProps {
   isSummaryLoading: boolean;
   summaryError: string | null;
   onGenerateSummary: () => void;
+  reviewStatus: ReviewStatus;
+  reviewNotes: string;
+  isReviewDirty: boolean;
+  isReviewSaving: boolean;
+  reviewSaveError: string | null;
+  reviewSavedMessage: string | null;
+  onReviewStatusChange: (status: ReviewStatus) => void;
+  onReviewNotesChange: (notes: string) => void;
+  onSaveReview: () => void;
 }
 
 const SVG_BAR_MAX_WIDTH = 320;
+const REVIEW_STATUS_OPTIONS: ReviewStatus[] = [
+  "Needs review",
+  "In review",
+  "Closed",
+];
 
 function computeBarWidth(value: number | null, maxValue: number): number {
   if (value === null || !Number.isFinite(value) || value <= 0 || maxValue <= 0) {
@@ -33,6 +49,17 @@ function computeBarWidth(value: number | null, maxValue: number): number {
   }
   const scaled = Math.round((value / maxValue) * SVG_BAR_MAX_WIDTH);
   return Math.max(4, Math.min(SVG_BAR_MAX_WIDTH, scaled));
+}
+
+function getReviewStatusBadgeClass(status: ReviewStatus): string {
+  switch (status) {
+    case "In review":
+      return "review-status-pill review-status-in-review";
+    case "Closed":
+      return "review-status-pill review-status-closed";
+    default:
+      return "review-status-pill review-status-needs-review";
+  }
 }
 
 export function AlertDetailPane({
@@ -46,6 +73,15 @@ export function AlertDetailPane({
   isSummaryLoading,
   summaryError,
   onGenerateSummary,
+  reviewStatus,
+  reviewNotes,
+  isReviewDirty,
+  isReviewSaving,
+  reviewSaveError,
+  reviewSavedMessage,
+  onReviewStatusChange,
+  onReviewNotesChange,
+  onSaveReview,
 }: AlertDetailPaneProps) {
   if (!selectedAlert) {
     return (
@@ -62,6 +98,11 @@ export function AlertDetailPane({
         </div>
       </section>
     );
+  }
+
+  function handleReviewSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    onSaveReview();
   }
 
   const txnAmountNum = Number(selectedAlert.amount);
@@ -92,6 +133,8 @@ export function AlertDetailPane({
       ? summaryResult
       : null;
 
+  const savedStatus = selectedAlert.review_status ?? "Needs review";
+
   return (
     <section
       className="panel detail-panel"
@@ -103,10 +146,15 @@ export function AlertDetailPane({
           <span className="section-eyebrow">SELECTED INVESTIGATION</span>
           <h2>{selectedAlert.trans_num} · Payment review</h2>
         </div>
-        <span className="rule-count-chip">
-          {selectedAlert.matched_rule_count} matched rule
-          {selectedAlert.matched_rule_count === 1 ? "" : "s"}
-        </span>
+        <div className="detail-header-badges">
+          <span className={getReviewStatusBadgeClass(savedStatus)}>
+            {savedStatus}
+          </span>
+          <span className="rule-count-chip">
+            {selectedAlert.matched_rule_count} matched rule
+            {selectedAlert.matched_rule_count === 1 ? "" : "s"}
+          </span>
+        </div>
       </div>
 
       {/* 4-Column Key Transaction Facts */}
@@ -229,6 +277,93 @@ export function AlertDetailPane({
           </div>
         )}
       </div>
+
+      {/* Analyst Review Section */}
+      <form
+        className="detail-subsection review-form-section"
+        onSubmit={handleReviewSubmit}
+        aria-label="Analyst review"
+      >
+        <div className="subsection-header">
+          <div>
+            <h3>Analyst decision</h3>
+            <p className="subsection-subtitle">
+              Record the current review status and investigation notes for alert{" "}
+              <code>{selectedAlert.trans_num}</code>.
+            </p>
+          </div>
+          <div className="review-meta-row">
+            {isReviewDirty && (
+              <span className="unsaved-pill">Unsaved changes</span>
+            )}
+            <span className="loaded-count-badge">
+              {selectedAlert.review_updated_at
+                ? `Last saved: ${selectedAlert.review_updated_at}`
+                : "Not yet saved · Defaults to Needs review"}
+            </span>
+          </div>
+        </div>
+
+        <div className="review-form-grid">
+          <label className="filter-field review-status-field">
+            <span className="filter-label">Review status</span>
+            <select
+              value={reviewStatus}
+              disabled={isReviewSaving}
+              onChange={(e) =>
+                onReviewStatusChange(e.target.value as ReviewStatus)
+              }
+            >
+              {REVIEW_STATUS_OPTIONS.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="filter-field review-notes-field">
+            <div className="review-notes-label-row">
+              <span className="filter-label">Investigation notes</span>
+              <span className="subsection-caption">
+                {reviewNotes.length} / 2,000 characters
+              </span>
+            </div>
+            <textarea
+              className="review-notes-textarea"
+              rows={3}
+              maxLength={2000}
+              placeholder="Record what you reviewed and your next step..."
+              value={reviewNotes}
+              disabled={isReviewSaving}
+              onChange={(e) => onReviewNotesChange(e.target.value)}
+            />
+          </label>
+        </div>
+
+        <div className="review-actions-row">
+          <button
+            type="submit"
+            className="btn-primary"
+            disabled={isReviewSaving}
+          >
+            {isReviewSaving ? "Saving review…" : "Save review"}
+          </button>
+
+          {!isReviewSaving && reviewSavedMessage && (
+            <span className="review-save-success" role="status">
+              {reviewSavedMessage}
+            </span>
+          )}
+        </div>
+
+        {!isReviewSaving && reviewSaveError && (
+          <div className="state-box state-error" role="alert">
+            <p className="state-title">Unable to save review</p>
+            <p className="state-detail">{reviewSaveError}</p>
+          </div>
+        )}
+      </form>
 
       {/* Two-Column Section: Amount Comparison Graphic + Prior Card Activity Snapshot */}
       <div className="detail-two-col">
@@ -525,7 +660,8 @@ export function AlertDetailPane({
             <div className="meta-item meta-item-wide">
               <span className="meta-label">Unity Catalog tables</span>
               <span className="meta-value">
-                Alerts: <code>workspace.sentinel_gold.alerts</code> · History:{" "}
+                Alerts: <code>workspace.sentinel_gold.alerts</code> · Reviews:{" "}
+                <code>workspace.sentinel_gold.alert_reviews</code> · History:{" "}
                 <code>workspace.sentinel_silver.transactions</code>
               </span>
             </div>

@@ -12,7 +12,9 @@ import {
   checkSqlConnection,
   fetchAlertHistory,
   fetchGoldAlerts,
+  GOLD_ALERT_REVIEWS_TABLE,
   GOLD_ALERTS_TABLE,
+  saveAlertReview,
   SILVER_TRANSACTIONS_TABLE
 } from "./sql.js";
 
@@ -124,6 +126,38 @@ app.get("/api/alerts/:alertId/history", async (request, response) => {
   } catch (error) {
     return handleSqlRouteError(
       "GET /api/alerts/:alertId/history",
+      error,
+      response
+    );
+  }
+});
+
+// Save or update the current analyst review for an alert in workspace.sentinel_gold.alert_reviews.
+app.put("/api/alerts/:alertId/review", async (request, response) => {
+  response.set("Cache-Control", "no-store");
+
+  try {
+    const savedReview = await saveAlertReview(
+      request.params.alertId,
+      request.body
+    );
+
+    if (!savedReview) {
+      return response.status(404).json({
+        status: "not_found",
+        message: "Alert not found in workspace.sentinel_gold.alerts."
+      });
+    }
+
+    return response.json({
+      status: "ok",
+      source: "databricks",
+      table: GOLD_ALERT_REVIEWS_TABLE,
+      review: savedReview
+    });
+  } catch (error) {
+    return handleSqlRouteError(
+      "PUT /api/alerts/:alertId/review",
       error,
       response
     );

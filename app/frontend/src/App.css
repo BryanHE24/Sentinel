@@ -610,6 +610,13 @@
   margin-top: 3px;
 }
 
+.detail-header-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
 .rule-count-chip {
   font-size: 11.5px;
   font-weight: 650;
@@ -618,6 +625,120 @@
   background: var(--accent-soft);
   border: 1px solid var(--accent-border);
   color: var(--accent);
+}
+
+/* Review Status Badges & Analyst Decision Form */
+.review-status-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.review-status-needs-review {
+  background: var(--code-bg);
+  border-color: var(--border-strong);
+  color: var(--text-h);
+}
+
+.review-status-in-review {
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.review-status-closed {
+  background: var(--ok-bg);
+  border-color: #a7f3d0;
+  color: var(--ok-text);
+}
+
+.review-form-section {
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+}
+
+.review-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.unsaved-pill {
+  font-size: 11px;
+  font-weight: 650;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--warning-bg);
+  border: 1px solid #fde68a;
+  color: var(--warning-text);
+}
+
+.review-form-grid {
+  display: grid;
+  grid-template-columns: minmax(190px, 240px) minmax(260px, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+@media (max-width: 760px) {
+  .review-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.review-status-field,
+.review-notes-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.review-notes-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.review-notes-textarea {
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-h);
+  resize: vertical;
+  min-height: 76px;
+}
+
+.review-notes-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.review-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.review-save-success {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ok-text);
 }
 
 /* 4-Column Key Transaction Facts */

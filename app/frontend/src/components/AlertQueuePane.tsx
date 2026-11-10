@@ -1,5 +1,5 @@
 import type { KeyboardEvent, ReactNode } from "react";
-import type { GoldAlert } from "../types/alerts";
+import type { GoldAlert, ReviewStatus } from "../types/alerts";
 import {
   formatCurrency,
   formatRuleBadge,
@@ -15,6 +15,17 @@ interface AlertQueuePaneProps {
   onSelectAlert: (alertId: string) => void;
   onRetry: () => void;
   children?: ReactNode;
+}
+
+function getReviewStatusBadgeClass(status: ReviewStatus | undefined): string {
+  switch (status) {
+    case "In review":
+      return "review-status-pill review-status-in-review";
+    case "Closed":
+      return "review-status-pill review-status-closed";
+    default:
+      return "review-status-pill review-status-needs-review";
+  }
 }
 
 export function AlertQueuePane({
@@ -86,11 +97,13 @@ export function AlertQueuePane({
                   <th>Masked card</th>
                   <th className="num-col">Amount</th>
                   <th>Matched rules</th>
+                  <th>Review status</th>
                 </tr>
               </thead>
               <tbody>
                 {alerts.map((alert) => {
                   const isSelected = alert.alert_id === selectedAlertId;
+                  const reviewStatus = alert.review_status ?? "Needs review";
                   return (
                     <tr
                       key={alert.alert_id}
@@ -131,6 +144,11 @@ export function AlertQueuePane({
                             </span>
                           )}
                         </div>
+                      </td>
+                      <td>
+                        <span className={getReviewStatusBadgeClass(reviewStatus)}>
+                          {reviewStatus}
+                        </span>
                       </td>
                     </tr>
                   );

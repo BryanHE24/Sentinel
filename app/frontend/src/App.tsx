@@ -7,10 +7,12 @@ import { AskGeniePanel } from "./components/AskGeniePanel";
 import type {
   AlertHistoryResponse,
   AlertQueryFilters,
+  AlertReviewSaveResponse,
   AlertsListResponse,
   AlertSummaryResponse,
   CardHistoryTransaction,
   GoldAlert,
+  ReviewStatus,
 } from "./types/alerts";
 
 const DEFAULT_FILTERS: AlertQueryFilters = {
@@ -33,6 +35,32 @@ const INITIAL_SUMMARY_STATE: ScopedSummaryState = {
   result: null,
   isLoading: false,
   error: null,
+};
+
+interface ScopedReviewDraftState {
+  alertId: string | null;
+  status: ReviewStatus;
+  notes: string;
+}
+
+const INITIAL_REVIEW_DRAFT: ScopedReviewDraftState = {
+  alertId: null,
+  status: "Needs review",
+  notes: "",
+};
+
+interface ScopedReviewSaveState {
+  alertId: string | null;
+  isSaving: boolean;
+  error: string | null;
+  savedMessage: string | null;
+}
+
+const INITIAL_REVIEW_SAVE_STATE: ScopedReviewSaveState = {
+  alertId: null,
+  isSaving: false,
+  error: null,
+  savedMessage: null,
 };
 
 function buildAlertsUrl(filters: AlertQueryFilters): string {
@@ -86,10 +114,17 @@ export function App() {
     useState<ScopedSummaryState>(INITIAL_SUMMARY_STATE);
   const summaryAbortRef = useRef<AbortController | null>(null);
 
-  // Abort any in-flight AI summary request if selectedAlertId changes or component unmounts.
+  const [reviewDraft, setReviewDraft] =
+    useState<ScopedReviewDraftState>(INITIAL_REVIEW_DRAFT);
+  const [reviewSaveState, setReviewSaveState] =
+    useState<ScopedReviewSaveState>(INITIAL_REVIEW_SAVE_STATE);
+  const reviewSaveAbortRef = useRef<AbortController | null>(null);
+
+  // Abort any in-flight AI summary or review save request if selectedAlertId changes or unmounts.
   useEffect(() => {
     return () => {
       summaryAbortRef.current?.abort();
+      reviewSaveAbortRef.current?.abort();
     };
   }, [selectedAlertId]);
 
@@ -126,7 +161,10 @@ export function App() {
             return currentId;
           }
           summaryAbortRef.current?.abort();
+          reviewSaveAbortRef.current?.abort();
           setSummaryState(INITIAL_SUMMARY_STATE);
+          setReviewDraft(INITIAL_REVIEW_DRAFT);
+          setReviewSaveState(INITIAL_REVIEW_SAVE_STATE);
           return loadedAlerts[0]?.alert_id ?? null;
         });
       } catch (error) {
@@ -134,7 +172,10 @@ export function App() {
           return;
         }
         summaryAbortRef.current?.abort();
+        reviewSaveAbortRef.current?.abort();
         setSummaryState(INITIAL_SUMMARY_STATE);
+        setReviewDraft(INITIAL_REVIEW_DRAFT);
+        setReviewSaveState(INITIAL_REVIEW_SAVE_STATE);
         setAlerts([]);
         setSelectedAlertId(null);
         setAlertsError(
@@ -156,7 +197,36 @@ export function App() {
     [alerts, selectedAlertId]
   );
 
-  // Load strictly earlier card history when the selected alert changes.
+  const currentReviewStatus: ReviewStatus =
+    selectedAlert && reviewDraft.alertId === selectedAlert.alert_id
+      ? reviewDraft.status
+      : (selectedAlert?.review_status ?? "Needs review");
+
+  const currentReviewNotes: string =
+    selectedAlert && reviewDraft.alertId === selectedAlert.alert_id
+      ? reviewDraft.notes
+      : (selectedAlert?.review_notes ?? "");
+
+  const isReviewDirty: boolean =
+    selectedAlert !== null &&
+    reviewDraft.alertId === selectedAlert.alert_id &&
+    (reviewDraft.status !== (selectedAlert.review_status ?? "Needs review") ||
+      reviewDraft.notes.trim() !== (selectedAlert.review_notes ?? "").trim());
+
+  // Warn before browser tab unload if the analyst has unsaved review edits.
+  useEffect(() => {
+    if (!isReviewDirty) {
+      return;
+    }
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isReviewDirty]);
+
+  // Load strictly earlier card history (and fresh review fields) when the selected alert changes.
   useEffect(() => {
     if (!selectedAlertId) {
       return;
@@ -185,6 +255,23 @@ export function App() {
         const data = (await response.json()) as AlertHistoryResponse;
         if (controller.signal.aborted) {
           return;
+        }
+
+        if (data.alert && data.alert.alert_id === activeAlertId) {
+          setAlerts((prev) =>
+            prev.map((item) =>
+              item.alert_id === activeAlertId
+                ? {
+                    ...item,
+                    review_status:
+                      data.alert.review_status ?? item.review_status,
+                    review_notes: data.alert.review_notes ?? item.review_notes,
+                    review_updated_at:
+                      data.alert.review_updated_at ?? item.review_updated_at,
+                  }
+                : item
+            )
+          );
         }
 
         setHistory(Array.isArray(data.history) ? data.history : []);
@@ -270,27 +357,182 @@ export function App() {
     [loadedSummary]
   );
 
+  function confirmDiscardUnsavedReview(): boolean {
+    if (!isReviewDirty) {
+      return true;
+    }
+    return window.confirm(
+      "You have unsaved review changes for this alert. Discard unsaved changes?"
+    );
+  }
+
   function handleApplyFilters() {
+    if (!confirmDiscardUnsavedReview()) {
+      return;
+    }
+    setReviewDraft(INITIAL_REVIEW_DRAFT);
+    setReviewSaveState(INITIAL_REVIEW_SAVE_STATE);
     setAppliedFilters({ ...draftFilters });
   }
 
   function handleResetFilters() {
+    if (!confirmDiscardUnsavedReview()) {
+      return;
+    }
+    setReviewDraft(INITIAL_REVIEW_DRAFT);
+    setReviewSaveState(INITIAL_REVIEW_SAVE_STATE);
     setDraftFilters(DEFAULT_FILTERS);
     setAppliedFilters(DEFAULT_FILTERS);
   }
 
   function handleQuickRuleSelect(ruleId: string) {
+    if (appliedFilters.ruleId !== ruleId && !confirmDiscardUnsavedReview()) {
+      return;
+    }
+    setReviewDraft(INITIAL_REVIEW_DRAFT);
+    setReviewSaveState(INITIAL_REVIEW_SAVE_STATE);
     setDraftFilters((prev) => ({ ...prev, ruleId }));
     setAppliedFilters((prev) => ({ ...prev, ruleId }));
   }
 
   function handleSelectAlert(alertId: string) {
     if (alertId !== selectedAlertId) {
+      if (!confirmDiscardUnsavedReview()) {
+        return;
+      }
       summaryAbortRef.current?.abort();
+      reviewSaveAbortRef.current?.abort();
       setSummaryState(INITIAL_SUMMARY_STATE);
+      setReviewDraft(INITIAL_REVIEW_DRAFT);
+      setReviewSaveState(INITIAL_REVIEW_SAVE_STATE);
       setHistory([]);
       setHistoryError(null);
       setSelectedAlertId(alertId);
+    }
+  }
+
+  function handleReviewStatusChange(nextStatus: ReviewStatus) {
+    if (!selectedAlert) {
+      return;
+    }
+    setReviewSaveState(INITIAL_REVIEW_SAVE_STATE);
+    setReviewDraft({
+      alertId: selectedAlert.alert_id,
+      status: nextStatus,
+      notes: currentReviewNotes,
+    });
+  }
+
+  function handleReviewNotesChange(nextNotes: string) {
+    if (!selectedAlert) {
+      return;
+    }
+    setReviewSaveState(INITIAL_REVIEW_SAVE_STATE);
+    setReviewDraft({
+      alertId: selectedAlert.alert_id,
+      status: currentReviewStatus,
+      notes: nextNotes,
+    });
+  }
+
+  async function handleSaveReview() {
+    if (!selectedAlert) {
+      return;
+    }
+
+    const targetAlertId = selectedAlert.alert_id;
+    const statusToSave = currentReviewStatus;
+    const notesToSave = currentReviewNotes.trim();
+
+    reviewSaveAbortRef.current?.abort();
+    const controller = new AbortController();
+    reviewSaveAbortRef.current = controller;
+
+    setReviewSaveState({
+      alertId: targetAlertId,
+      isSaving: true,
+      error: null,
+      savedMessage: null,
+    });
+
+    try {
+      const response = await fetch(
+        `/api/alerts/${encodeURIComponent(targetAlertId)}/review`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            reviewStatus: statusToSave,
+            reviewNotes: notesToSave,
+          }),
+          signal: controller.signal,
+        }
+      );
+
+      if (!response.ok) {
+        const message = await readErrorMessage(
+          response,
+          "Failed to save analyst review"
+        );
+        throw new Error(message);
+      }
+
+      const data = (await response.json()) as AlertReviewSaveResponse;
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      const saved = data.review;
+
+      // Update only the matching alert in the queue so another alert's review is never overwritten.
+      setAlerts((prev) =>
+        prev.map((item) =>
+          item.alert_id === targetAlertId
+            ? {
+                ...item,
+                review_status: saved.review_status,
+                review_notes: saved.review_notes,
+                review_updated_at: saved.review_updated_at,
+              }
+            : item
+        )
+      );
+
+      setReviewDraft((current) => {
+        if (current.alertId !== null && current.alertId !== targetAlertId) {
+          return current;
+        }
+        return {
+          alertId: targetAlertId,
+          status: saved.review_status,
+          notes: saved.review_notes,
+        };
+      });
+
+      setReviewSaveState({
+        alertId: targetAlertId,
+        isSaving: false,
+        error: null,
+        savedMessage: saved.review_updated_at
+          ? `Review saved (${saved.review_updated_at})`
+          : "Review saved",
+      });
+    } catch (error) {
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      setReviewSaveState({
+        alertId: targetAlertId,
+        isSaving: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to save analyst review.",
+        savedMessage: null,
+      });
     }
   }
 
@@ -323,7 +565,7 @@ export function App() {
       if (!response.ok) {
         const message = await readErrorMessage(
           response,
-          "Failed to generate AI evidence summary"
+          "Failed to generate evidence summary"
         );
         throw new Error(message);
       }
@@ -360,7 +602,7 @@ export function App() {
           error:
             error instanceof Error
               ? error.message
-              : "Failed to generate AI evidence summary.",
+              : "Failed to generate evidence summary.",
         };
       });
     }
@@ -368,6 +610,8 @@ export function App() {
 
   const isCurrentSummaryAlert =
     selectedAlertId !== null && summaryState.alertId === selectedAlertId;
+  const isCurrentReviewSaveAlert =
+    selectedAlertId !== null && reviewSaveState.alertId === selectedAlertId;
 
   return (
     <div className="app-layout">
@@ -532,6 +776,23 @@ export function App() {
             summaryError={isCurrentSummaryAlert ? summaryState.error : null}
             onGenerateSummary={() => {
               void handleGenerateSummary();
+            }}
+            reviewStatus={currentReviewStatus}
+            reviewNotes={currentReviewNotes}
+            isReviewDirty={isReviewDirty}
+            isReviewSaving={
+              isCurrentReviewSaveAlert ? reviewSaveState.isSaving : false
+            }
+            reviewSaveError={
+              isCurrentReviewSaveAlert ? reviewSaveState.error : null
+            }
+            reviewSavedMessage={
+              isCurrentReviewSaveAlert ? reviewSaveState.savedMessage : null
+            }
+            onReviewStatusChange={handleReviewStatusChange}
+            onReviewNotesChange={handleReviewNotesChange}
+            onSaveReview={() => {
+              void handleSaveReview();
             }}
           />
 
