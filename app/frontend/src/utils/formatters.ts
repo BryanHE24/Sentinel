@@ -1,4 +1,4 @@
-import type { GoldAlert, RuleEvidence } from "../types/alerts";
+import type { GoldAlert, ReviewStatus, RuleEvidence } from "../types/alerts";
 
 const usdFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -64,6 +64,22 @@ export function formatRuleBadge(ruleId: string): string {
       return "Similar payments (1h)";
     default:
       return ruleId;
+  }
+}
+
+/**
+ * Return the CSS badge class for an analyst review status pill.
+ */
+export function getReviewStatusBadgeClass(
+  status: ReviewStatus | undefined
+): string {
+  switch (status) {
+    case "In review":
+      return "review-status-pill review-status-in-review";
+    case "Closed":
+      return "review-status-pill review-status-closed";
+    default:
+      return "review-status-pill review-status-needs-review";
   }
 }
 

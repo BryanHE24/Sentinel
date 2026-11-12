@@ -1,8 +1,9 @@
 import type { KeyboardEvent, ReactNode } from "react";
-import type { GoldAlert, ReviewStatus } from "../types/alerts";
+import type { GoldAlert } from "../types/alerts";
 import {
   formatCurrency,
   formatRuleBadge,
+  getReviewStatusBadgeClass,
   maskCardNumber,
 } from "../utils/formatters";
 
@@ -15,17 +16,6 @@ interface AlertQueuePaneProps {
   onSelectAlert: (alertId: string) => void;
   onRetry: () => void;
   children?: ReactNode;
-}
-
-function getReviewStatusBadgeClass(status: ReviewStatus | undefined): string {
-  switch (status) {
-    case "In review":
-      return "review-status-pill review-status-in-review";
-    case "Closed":
-      return "review-status-pill review-status-closed";
-    default:
-      return "review-status-pill review-status-needs-review";
-  }
 }
 
 export function AlertQueuePane({

@@ -1,4 +1,3 @@
-import type { FormEvent } from "react";
 import type {
   AlertSummaryResponse,
   CardHistoryTransaction,
@@ -10,8 +9,10 @@ import {
   formatCurrency,
   formatObservedMetricsList,
   formatRuleTitle,
+  getReviewStatusBadgeClass,
   maskCardNumber,
 } from "../utils/formatters";
+import { AnalystReviewForm } from "./AnalystReviewForm";
 import { SafeMarkdownText } from "./SafeMarkdownText";
 
 interface AlertDetailPaneProps {
@@ -37,11 +38,6 @@ interface AlertDetailPaneProps {
 }
 
 const SVG_BAR_MAX_WIDTH = 320;
-const REVIEW_STATUS_OPTIONS: ReviewStatus[] = [
-  "Needs review",
-  "In review",
-  "Closed",
-];
 
 function computeBarWidth(value: number | null, maxValue: number): number {
   if (value === null || !Number.isFinite(value) || value <= 0 || maxValue <= 0) {
@@ -49,17 +45,6 @@ function computeBarWidth(value: number | null, maxValue: number): number {
   }
   const scaled = Math.round((value / maxValue) * SVG_BAR_MAX_WIDTH);
   return Math.max(4, Math.min(SVG_BAR_MAX_WIDTH, scaled));
-}
-
-function getReviewStatusBadgeClass(status: ReviewStatus): string {
-  switch (status) {
-    case "In review":
-      return "review-status-pill review-status-in-review";
-    case "Closed":
-      return "review-status-pill review-status-closed";
-    default:
-      return "review-status-pill review-status-needs-review";
-  }
 }
 
 export function AlertDetailPane({
@@ -98,11 +83,6 @@ export function AlertDetailPane({
         </div>
       </section>
     );
-  }
-
-  function handleReviewSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    onSaveReview();
   }
 
   const txnAmountNum = Number(selectedAlert.amount);
@@ -279,91 +259,19 @@ export function AlertDetailPane({
       </div>
 
       {/* Analyst Review Section */}
-      <form
-        className="detail-subsection review-form-section"
-        onSubmit={handleReviewSubmit}
-        aria-label="Analyst review"
-      >
-        <div className="subsection-header">
-          <div>
-            <h3>Analyst decision</h3>
-            <p className="subsection-subtitle">
-              Record the current review status and investigation notes for alert{" "}
-              <code>{selectedAlert.trans_num}</code>.
-            </p>
-          </div>
-          <div className="review-meta-row">
-            {isReviewDirty && (
-              <span className="unsaved-pill">Unsaved changes</span>
-            )}
-            <span className="loaded-count-badge">
-              {selectedAlert.review_updated_at
-                ? `Last saved: ${selectedAlert.review_updated_at}`
-                : "Not yet saved · Defaults to Needs review"}
-            </span>
-          </div>
-        </div>
-
-        <div className="review-form-grid">
-          <label className="filter-field review-status-field">
-            <span className="filter-label">Review status</span>
-            <select
-              value={reviewStatus}
-              disabled={isReviewSaving}
-              onChange={(e) =>
-                onReviewStatusChange(e.target.value as ReviewStatus)
-              }
-            >
-              {REVIEW_STATUS_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="filter-field review-notes-field">
-            <div className="review-notes-label-row">
-              <span className="filter-label">Investigation notes</span>
-              <span className="subsection-caption">
-                {reviewNotes.length} / 2,000 characters
-              </span>
-            </div>
-            <textarea
-              className="review-notes-textarea"
-              rows={3}
-              maxLength={2000}
-              placeholder="Record what you reviewed and your next step..."
-              value={reviewNotes}
-              disabled={isReviewSaving}
-              onChange={(e) => onReviewNotesChange(e.target.value)}
-            />
-          </label>
-        </div>
-
-        <div className="review-actions-row">
-          <button
-            type="submit"
-            className="btn-primary"
-            disabled={isReviewSaving}
-          >
-            {isReviewSaving ? "Saving review…" : "Save review"}
-          </button>
-
-          {!isReviewSaving && reviewSavedMessage && (
-            <span className="review-save-success" role="status">
-              {reviewSavedMessage}
-            </span>
-          )}
-        </div>
-
-        {!isReviewSaving && reviewSaveError && (
-          <div className="state-box state-error" role="alert">
-            <p className="state-title">Unable to save review</p>
-            <p className="state-detail">{reviewSaveError}</p>
-          </div>
-        )}
-      </form>
+      <AnalystReviewForm
+        transNum={selectedAlert.trans_num}
+        reviewUpdatedAt={selectedAlert.review_updated_at}
+        reviewStatus={reviewStatus}
+        reviewNotes={reviewNotes}
+        isReviewDirty={isReviewDirty}
+        isReviewSaving={isReviewSaving}
+        reviewSaveError={reviewSaveError}
+        reviewSavedMessage={reviewSavedMessage}
+        onReviewStatusChange={onReviewStatusChange}
+        onReviewNotesChange={onReviewNotesChange}
+        onSaveReview={onSaveReview}
+      />
 
       {/* Two-Column Section: Amount Comparison Graphic + Prior Card Activity Snapshot */}
       <div className="detail-two-col">

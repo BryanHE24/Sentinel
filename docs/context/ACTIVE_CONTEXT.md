@@ -2,7 +2,7 @@
 
 ## Session Metadata
 
-- Last updated: 2026-11-10
+- Last updated: 2026-11-12
 - Active role: QA Engineer
 - Mode: VERIFICATION
 
@@ -17,7 +17,7 @@ Prioritize understandable implementation and small steps.
 
 ## Current Objective
 
-Phase 2 is **complete and verified**, and the Phase 3 **read-only investigation UI and API** (`GET /api/alerts`, `GET /api/alerts/:alertId/history`, and `app/frontend/src/`) are **complete and verified** in live browser checks on `feat/phase-3-investigation-ui`. Step 3E (**AI evidence summaries** via `POST /api/alerts/:alertId/summary`), Step 3F (**Ask Genie panel** via `POST /api/genie/ask`), and Step 3G (**Analyst review persistence** via `PUT /api/alerts/:alertId/review` against `workspace.sentinel_gold.alert_reviews`) are implemented and verified locally, pending live Databricks AI Gateway, Genie Conversation API, and review persistence testing.
+Phase 2 is **complete and verified**, and Phase 3 is **implemented and verified in live Databricks App checks** for the read-only investigation UI (`GET /api/alerts`, `GET /api/alerts/:alertId/history`), **AI evidence summaries** (`POST /api/alerts/:alertId/summary`), **Ask Genie initial questions** (`POST /api/genie/ask`), and **Analyst review persistence** (`PUT /api/alerts/:alertId/review` — save/update, refresh persistence, and alert isolation passed). Power BI imports `transactions`, `alerts`, and `alert_reviews` with verified KPI totals. Remaining unconfirmed items: Genie follow-up questions, review survival after a pipeline rerun, Power BI shared-date filtering, and browser regression check after the `AnalystReviewForm` extraction.
 
 ## Development Workflow
 
@@ -138,31 +138,42 @@ The assessment filename above reflects the existing repository spelling.
     - No-match search clears both the review queue and the selected investigation details.
     - `Reset` restores the alerts queue and default selection.
 
-### Step 3E — On-Demand AI Evidence Summaries (`app/backend/ai.js`, `app/backend/server.js`, `app/frontend/src/`)
-- **Implemented & Verified Locally**:
+### Step 3E — On-Demand AI Evidence Summaries (`app/backend/ai.js`, `app/backend/server.js`, `app/frontend/src/`) — Tested in Live Databricks App
+- **Implemented & Confirmed in Live Testing**:
   - Reused the existing Databricks OAuth + AI Gateway chat completion connection in `app/backend/ai.js` (`fetchDatabricksWorkspaceAuth`, `requestAiChatCompletion`, `maskCardIdentifier`, `buildAlertEvidencePayload`, `generateAlertEvidenceSummary`).
-  - Added `POST /api/alerts/:alertId/summary` in `app/backend/server.js`, which retrieves the selected alert and up to `10` strictly earlier card transactions (`event_time < alert.event_time`) on the server via `fetchAlertHistory`, masks card identifiers, excludes fraud labels, treats merchant/source text strictly as data rather than instructions, and requests a short plain-text explanation covering why the transaction was flagged, supporting facts/thresholds, and missing context/limitations.
-  - Added the `Generate evidence summary` button and plain-text summary box in `app/frontend/src/components/AlertDetailPane.tsx` and `app/frontend/src/App.tsx` with loading, error, and `AI-generated` labels, clearing state and aborting any in-flight request when alert selection changes.
+  - Added `POST /api/alerts/:alertId/summary` in `app/backend/server.js`, which retrieves the selected alert and up to `10` strictly earlier card transactions (`event_time < alert.event_time`) on the server via `fetchAlertHistory`, masks card identifiers, excludes fraud labels, treats merchant/source text strictly as data rather than instructions, and requests a short explanation covering why the transaction was flagged, supporting facts/thresholds, and missing context/limitations.
+  - Added the `Generate evidence summary` button and safe Markdown summary box (`SafeMarkdownText.tsx`) in `app/frontend/src/components/AlertDetailPane.tsx` and `app/frontend/src/App.tsx` with loading, error, and `AI-generated · Review against evidence` labels, clearing state and aborting any in-flight request when alert selection changes.
+  - **Live Databricks App Verification**: Live evidence summary generation tested and passed.
 
-### Step 3F — Ask Genie Panel (`app/app.yaml`, `app/backend/genie.js`, `app/backend/server.js`, `app/frontend/src/components/AskGeniePanel.tsx`)
-- **Implemented & Verified Locally**:
+### Step 3F — Ask Genie Panel (`app/app.yaml`, `app/backend/genie.js`, `app/backend/server.js`, `app/frontend/src/components/AskGeniePanel.tsx`) — Initial Questions Tested Live; Follow-Ups Unconfirmed
+- **Implemented & Tested for Initial Questions**:
   - Configured `SENTINEL_GENIE_SPACE_ID` via `valueFrom: sentinel-genie` in `app/app.yaml` (never hardcoded).
-  - Reused `fetchDatabricksWorkspaceAuth` in `app/backend/genie.js` and implemented `askSentinelGenie` + `POST /api/genie/ask` (`app/backend/server.js`): starts a Genie conversation (`/api/2.0/genie/spaces/{spaceId}/start-conversation`) or sends a follow-up message (`/conversations/{conversationId}/messages`), polls message status with a bounded timeout (`60s`), and retrieves the plain-text answer, generated SQL, and available attachment query results (capped at `20` displayed rows) without executing generated SQL separately.
+  - Reused `fetchDatabricksWorkspaceAuth` in `app/backend/genie.js` and implemented `askSentinelGenie` + `POST /api/genie/ask` (`app/backend/server.js`): starts a Genie conversation (`/api/2.0/genie/spaces/{spaceId}/start-conversation`) or sends a follow-up message (`/conversations/{conversationId}/messages`), polls message status with a bounded timeout (`60s`), and retrieves the answer, generated SQL, and available attachment query results (capped at `20` displayed rows) without executing generated SQL separately.
   - Added `app/frontend/src/components/AskGeniePanel.tsx` (separate from the selected-alert summary) with question input, `Ask` / `Ask follow-up` button, `New conversation` reset, loading/error states, `AI-generated · Review against evidence` label, safe basic Markdown answer (`SafeMarkdownText.tsx`), and collapsible `View supporting data` containing generated SQL and capped query results.
+  - **Live Databricks App Verification**: Initial Genie questions tested and confirmed; follow-up questions in an active conversation remain unconfirmed.
 
-### Step 3G — Analyst Review Persistence (`workspace.sentinel_gold.alert_reviews`, `app/backend/sql.js`, `app/backend/server.js`, `app/frontend/src/`)
-- **Implemented & Verified Locally (Pending Live Persistence Testing)**:
+### Step 3G — Analyst Review Persistence (`workspace.sentinel_gold.alert_reviews`, `app/backend/sql.js`, `app/backend/server.js`, `app/frontend/src/`) — Tested in Live Databricks App
+- **Implemented & Confirmed in Live Testing**:
   - **Backend (`app/backend/sql.js`, `app/backend/server.js`)**:
     - Joined `workspace.sentinel_gold.alerts` with a deduplicated subquery on `workspace.sentinel_gold.alert_reviews` (`QUALIFY ROW_NUMBER() OVER (PARTITION BY LOWER(alert_id) ORDER BY updated_at DESC) = 1`) in `fetchGoldAlerts` and `fetchAlertHistory` so alert/history reads always remain at one row per transaction and default unsaved alerts to `review_status = 'Needs review'`, `review_notes = ''`, and `review_updated_at = null`.
     - Added `parseAlertReviewInput` and `saveAlertReview` (`PUT /api/alerts/:alertId/review`), validating 64-hex `alertId`, `reviewStatus` (`'Needs review'`, `'In review'`, `'Closed'`), and `reviewNotes` (maximum `2,000` characters), verifying that the alert exists in `workspace.sentinel_gold.alerts` (`404` if missing), executing a parameterized `MERGE INTO workspace.sentinel_gold.alert_reviews`, and returning the saved review record.
   - **Frontend (`app/frontend/src/`)**:
-    - Added the `Review status` badge column in the selectable Review queue table (`AlertQueuePane.tsx`).
-    - Added the **Analyst decision** section in `AlertDetailPane.tsx` with `Review status` select (`Needs review`, `In review`, `Closed`), `Investigation notes` textarea (`2,000` character counter), `Save review` button, last-saved timestamp badge, `Unsaved changes` indicator, save-success message, and error state.
+    - Added the `Review status` badge column in the selectable Review queue table (`AlertQueuePane.tsx`) using shared `getReviewStatusBadgeClass` in `app/frontend/src/utils/formatters.ts`.
+    - Extracted the **Analyst decision** form into `app/frontend/src/components/AnalystReviewForm.tsx` (rendered by `AlertDetailPane.tsx`) with `Review status` select (`Needs review`, `In review`, `Closed`), `Investigation notes` textarea (`2,000` character counter), `Save review` button, last-saved timestamp badge, `Unsaved changes` indicator, save-success message, and error state.
     - Scoped draft edits and save requests (`AbortController`) to the selected `alert_id` in `App.tsx` so switching alerts cannot display or overwrite another alert's review, and added unsaved-edit confirmation (`window.confirm` + `beforeunload`) before discarding unsaved changes.
-- **Pending Live Databricks Checks**:
-  - Live persistence test of `PUT /api/alerts/:alertId/review` and `GET /api/alerts` against `workspace.sentinel_gold.alert_reviews`.
-  - Live test of `POST /api/alerts/:alertId/summary` against the configured Databricks AI Gateway endpoint (`SENTINEL_AI_MODEL`).
-  - Live test of `POST /api/genie/ask` (initial question and follow-up question) against the configured Databricks Genie space (`SENTINEL_GENIE_SPACE_ID` from `sentinel-genie`).
+  - **Live Databricks App Verification**: Review save/update, browser refresh persistence, and alert isolation passed in live testing. Review survival after rerunning the pipeline job remains unconfirmed.
+
+### Power BI Consumer (SQL Warehouse)
+- **Status**:
+  - Imports `workspace.sentinel_silver.transactions`, `workspace.sentinel_gold.alerts`, and `workspace.sentinel_gold.alert_reviews` via the Databricks SQL Warehouse.
+  - KPI totals were verified.
+  - Shared-date filtering across the imported tables remains unconfirmed.
+
+### Remaining Unconfirmed Checks
+- Genie follow-up questions (`POST /api/genie/ask` with an active `conversationId`).
+- Saved review survival in `workspace.sentinel_gold.alert_reviews` after rerunning the 4-task Lakeflow Job.
+- Power BI shared-date filtering across imported tables.
+- Browser regression check after extracting `AnalystReviewForm.tsx` and consolidating `getReviewStatusBadgeClass` in `formatters.ts`.
 
 ## Established Decisions
 
@@ -192,8 +203,8 @@ The assessment filename above reflects the existing repository spelling.
 
 ## Next Steps
 
-1. Run live persistence testing for `PUT /api/alerts/:alertId/review` and `GET /api/alerts` against `workspace.sentinel_gold.alert_reviews` in Databricks.
-2. Run live browser verification for `POST /api/alerts/:alertId/summary` and `POST /api/genie/ask` (initial + follow-up questions) against the Databricks AI Gateway and Genie Conversation API endpoints.
+1. Run browser regression checks for the `AnalystReviewForm` extraction and `getReviewStatusBadgeClass` consolidation.
+2. Verify Genie follow-up questions, saved review survival after a pipeline rerun, and Power BI shared-date filtering when ready.
 
 ## Verification Limitations
 
