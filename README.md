@@ -179,14 +179,3 @@ Sentinel replays a continuous 6-week slice of `fraudTrain.csv` (`2019-01-01 00:0
 
 ---
 
-## Prototype Limitations & Remaining Checks
-
-- **Prototype Scope & Rule Baseline**: The frozen ruleset (`ruleset-v1.0-frozen`) is an intentionally simple 3-rule baseline (`8.15%` precision, `45.31%` recall on holdout data; `RULE_03` had `0` matches in development). Thresholds are frozen to demonstrate honest holdout evaluation rather than label-tuned optimization.
-- **Full-Snapshot `overwrite` in Silver & Gold**: Bronze ingests incrementally via Auto Loader (`append`), while Silver, Historical Features, and Gold Alerts recompute via full-snapshot `overwrite` across the `71,934`-row dataset so cross-batch duplicate ID conflicts are handled simply.
-- **Bounded API Responses**: `/api/alerts` is capped at `200` rows (default `50`) and `/api/alerts/:alertId/history` is capped at `100` rows (default `25`). UI summary cards explicitly describe **loaded results**.
-- **Single-Row Review Storage**: `workspace.sentinel_gold.alert_reviews` stores one current review per `alert_id` via `MERGE INTO` without audit history, user attribution, or concurrent-edit locking.
-- **Remaining Unconfirmed Checks**:
-  - Live test of **Genie follow-up questions** (`POST /api/genie/ask` with an active `conversationId`).
-  - Confirming that saved reviews in `workspace.sentinel_gold.alert_reviews` remain intact and joined after **rerunning the 4-task Lakeflow Job**.
-  - Confirming **Power BI shared-date filtering** across imported tables (`transactions`, `alerts`, `alert_reviews`).
-  - Browser regression check following the extraction of `AnalystReviewForm.tsx`.
