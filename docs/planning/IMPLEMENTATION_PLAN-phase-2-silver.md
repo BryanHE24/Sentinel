@@ -30,7 +30,7 @@ and content equality.
 
 1. **Normalize Blank Identifiers**: Normalize blank or whitespace-only required identifiers (`trans_num`, `cc_num`, `merchant`) to `NULL` via `NULLIF(TRIM(...), '')`.
 2. **Parse Event Time**: Parse `trans_date_trans_time` as `TIMESTAMP_NTZ` (`event_time`) using `TRY_CAST`, preserving written clock time without assuming a source timezone. Distinguish missing strings from unparseable timestamps.
-3. **Validate Monetary Amounts**: Convert `amt` to `DECIMAL(18,2)` (`amount`) alongside `DECIMAL(38,18)` (`_wide_amount`), explicitly detecting missing values, unparseable/out-of-range strings, non-positive values (`<= 0`), and precision-changing values (`_wide_amount != amount`).
+3. **Validate Monetary Amounts**: Convert `amt` to `DECIMAL(18,2)` (`amount`) using `try_cast` and `AMOUNT_PATTERN = r"^-?[0-9]+(\.[0-9]{1,2})?$"`, explicitly detecting missing values (`missing_amount`), malformed/out-of-range or `>2`-decimal values (`invalid_amount`), and non-positive values (`<= 0`, `non_positive_amount`).
 4. **Preserve Traceability and Raw Values**: Retain source lineage (`source_file`, `source_row_index`, `replay_batch`, `_ingested_file_path`, `_ingestion_timestamp`, `_rescued_data`) and raw input strings (`raw_trans_num`, `raw_cc_num`, `raw_merchant`, `raw_amt`, `raw_trans_date_trans_time`, `unix_time`) needed to investigate rejected or duplicate records.
 5. **Quarantine Non-Blank Rescued Data**: Quarantine any record with non-blank `_rescued_data` (`_rescued_data IS NOT NULL AND TRIM(_rescued_data) != ''`) using validation reason `unexpected_rescued_data`, preserving `_rescued_data` for investigation. `NULL` and whitespace-only `_rescued_data` do not trigger this reason.
 6. **Whole-Input Duplicate Classification**:
@@ -75,23 +75,23 @@ and content equality.
 5. Classify duplicate transaction IDs across the full Bronze table without arbitrary winner selection (Verified in Databricks).
 6. Produce row-level dispositions and a reconciliation summary accounting for every input row exactly once (Verified in Databricks).
 7. Test invalid inputs, duplicate scenarios, missing IDs, and rescued-data handling using the 24-row synthetic fixture (Verified in Databricks).
-8. Persist `workspace.sentinel_silver.transactions` and `workspace.sentinel_silver.quarantine` in full-recomputation overwrite mode, read both tables back, and verify schemas, counts, key uniqueness, content equality (`exceptAll`), and rerun idempotency (Implemented locally in `pipelines/02_silver_transactions.ipynb`; pending Databricks execution).
-9. Compute point-in-time historical features from `workspace.sentinel_silver.transactions` in `pipelines/03_historical_features.ipynb` using shared module `pipelines/historical_features.py` (display and synthetic verification only; no table writes yet):
+8. Persist `workspace.sentinel_silver.transactions` and `workspace.sentinel_silver.quarantine` in full-recomputation overwrite mode, read both tables back, and verify schemas, counts, key uniqueness, content equality (`exceptAll`), and rerun idempotency (Executed and confirmed in Databricks across all 42 batches).
+9. Compute point-in-time historical features from `workspace.sentinel_silver.transactions` in `pipelines/03_historical_features.ipynb` and persist `workspace.sentinel_gold.transaction_features` (`overwrite` mode, 1 row per `trans_num`):
    - `card_txn_count_1h`: earlier payment count for the same `cc_num` in `[event_time - 1 hour, event_time)`.
    - `card_txn_count_14d`: earlier payment count for the same `cc_num` in `[event_time - 14 days, event_time)`.
    - `card_avg_amount_14d`: earlier average `amount` (`DECIMAL(18,2)`) for the same `cc_num` in `[event_time - 14 days, event_time)`, or `NULL` when `card_txn_count_14d == 0`.
    - `card_merchant_txn_count_1h`: earlier payment count for the same `(cc_num, merchant)` in `[event_time - 1 hour, event_time)`.
    - `card_merchant_similar_amount_count_1h`: earlier payment count for the same `(cc_num, merchant)` in `[event_time - 1 hour, event_time)` within `±10%` of the current `amount`.
-   - Verify 1:1 `trans_num` grain, lower-boundary inclusion, equal-timestamp exclusion, no-history `NULL` average, and future-event exclusion via synthetic tests (Confirmed passed in Databricks; real-data feature row counts pending inspection).
-10. Evaluate three versioned provisional monitoring rules in `pipelines/04_monitoring_rules.ipynb` using `pipelines/historical_features.py` without copying feature logic (Verified in Databricks: `2,414` evaluated transactions, `21` flagged: `1` velocity, `20` unusual amount, `0` repeated similar; all synthetic rule tests passed):
-   - `RULE_01_CARD_VELOCITY_1H` (`v1.0-provisional`): `card_txn_count_1h >= 3`.
-   - `RULE_02_UNUSUAL_AMOUNT_14D` (`v1.0-provisional`): `card_txn_count_14d >= 5` and `amount >= 3.00 * card_avg_amount_14d`.
-   - `RULE_03_REPEATED_SIMILAR_MERCHANT_1H` (`v1.0-provisional`): `card_merchant_similar_amount_count_1h >= 2` (within `±10%` of current `amount`; merchant count alone does not establish similar amounts).
+   - Verify 1:1 `trans_num` grain, lower-boundary inclusion, equal-timestamp exclusion, no-history `NULL` average, and future-event exclusion via synthetic tests (Executed and confirmed in Databricks).
+10. Evaluate three versioned frozen monitoring rules (`ruleset-v1.0-frozen`) in `pipelines/04_monitoring_rules.ipynb` reading `workspace.sentinel_gold.transaction_features`:
+   - `RULE_01_CARD_VELOCITY_1H` (`v1.0-frozen`): `card_txn_count_1h >= 3`.
+   - `RULE_02_UNUSUAL_AMOUNT_14D` (`v1.0-frozen`): `card_txn_count_14d >= 5` and `amount >= 3.00 * card_avg_amount_14d`.
+   - `RULE_03_REPEATED_SIMILAR_MERCHANT_1H` (`v1.0-frozen`): `card_merchant_similar_amount_count_1h >= 2` (within `±10%` of current `amount`; merchant count alone does not establish similar amounts).
    - Preserve 1 row per `trans_num`, record matched rule IDs/versions and structured supporting evidence, verify real feature counts and unique IDs, and test matches, non-matches, exact boundaries, and insufficient history.
 11. Persist flagged monitoring alerts to `workspace.sentinel_gold.alerts` in `pipelines/04_monitoring_rules.ipynb` using full-snapshot `overwrite` mode:
    - Keep one row per flagged transaction (`trans_num`) with a deterministic `alert_id` (`SHA-256(ruleset_version || '|' || trans_num)`), transaction details, matching rule IDs/versions, and structured `rule_evidence`.
    - Never persist synthetic test records; exclude fraud labels and analyst workflow fields.
-   - Read back `workspace.sentinel_gold.alerts`, verify row count (`21` expected for `2019-01-01`), unique `alert_id` and `trans_num`, retained evidence, `exceptAll` content equality, and rerun idempotency.
+   - Read back `workspace.sentinel_gold.alerts`, verify row count (`21` on Jan 1; `2,719` across Jan 1–28; `4,142` across all 42 batches), unique `alert_id` and `trans_num`, and retained evidence.
 
 ## Constraints
 
@@ -105,5 +105,5 @@ and content equality.
 
 ## Status
 
-- Steps 1–10: Executed and confirmed in Databricks (`2,414` evaluated transactions for `2019-01-01`, `21` flagged: `1` velocity, `20` unusual amount, `0` repeated similar; all synthetic feature and rule tests passed).
-- Step 11 (Gold alert persistence to `workspace.sentinel_gold.alerts`, read-back verification, and rerun check): Implemented and reviewed locally in `pipelines/04_monitoring_rules.ipynb`; pending Databricks execution.
+- Steps 1–11: Executed and confirmed in Databricks across all 42 batches (`71,934` accepted Silver transactions, `0` quarantined rows, `4,142` total Gold alerts across Jan 1–Feb 11, and holdout evaluation verified in `pipelines/05_rule_evaluation.ipynb`).
+- Refactored to Associate-level PySpark (`docs/REFACTOR_GUIDE.md`), verified via two-way `exceptAll == 0` equivalence (`tests/00_refactor_equivalence_check.ipynb`), and executed end-to-end via the 4-task Databricks Lakeflow Job (`01_bronze_transactions → 02_silver_transactions → 03_historical_features → 04_monitoring_rules`).

@@ -2,7 +2,7 @@
 
 ## Session Metadata
 
-- Last updated: 2026-11-09
+- Last updated: 2026-11-12
 - Active role: QA Engineer
 - Mode: VERIFICATION
 
@@ -17,7 +17,7 @@ Prioritize understandable implementation and small steps.
 
 ## Current Objective
 
-Phase 2 is **complete and verified**. Plan and build the smallest Phase 3 UI step (`docs/planning/IMPLEMENTATION_PLAN-phase-3-ui.md`): an alert list with filters, an alert detail view with transaction history and rule evidence, and a clear path to `workspace.sentinel_gold.alerts` that explicitly distinguishes mock preview data from connected Databricks SQL data.
+Phase 2 is **complete and verified**, and Phase 3 is **implemented and verified in live Databricks App checks** for the read-only investigation UI (`GET /api/alerts`, `GET /api/alerts/:alertId/history`), **AI evidence summaries** (`POST /api/alerts/:alertId/summary`), **Ask Genie initial questions** (`POST /api/genie/ask`), and **Analyst review persistence** (`PUT /api/alerts/:alertId/review` — save/update, refresh persistence, and alert isolation passed). Power BI imports `transactions`, `alerts`, and `alert_reviews` with verified KPI totals. Remaining unconfirmed items: Genie follow-up questions, review survival after a pipeline rerun, Power BI shared-date filtering, and browser regression check after the `AnalystReviewForm` extraction.
 
 ## Development Workflow
 
@@ -100,29 +100,80 @@ The assessment filename above reflects the existing repository spelling.
   - Recall: `45.31%` (`0.4531`)
   - **Baseline Assessment**: This frozen ruleset (`ruleset-v1.0-frozen`) serves as a simple prototype baseline with substantial false alarms (`1,307` false positives) and missed fraud (`140` false negatives), motivating analyst review workflows and AI/triage enrichment while keeping rule thresholds unchanged.
 
-### Local Checks vs. Pending Databricks Execution (Associate-Level PySpark Refactor)
-- **Implemented & Reviewed Locally**:
-  - Added `.ace/standards/pyspark-associate-level.md` and `docs/REFACTOR_GUIDE.md`, and updated `.ace/standards/coding.md`, `.aceconfig`, `.aiconfig`, `.cursorrules`, and `docs/context/PROJECT_CONTEXT.md` (treating line/row/check counts as preferences, removing noisy skill triggers, and banning hidden helper modules or copied pipeline logic in tests).
-  - Refactored `pipelines/02_silver_transactions.ipynb` (`15` cells) to use `clean_and_check_fields`, `find_duplicates`, `route_rows`, `F.array_compact`, `F.collect_set(F.struct(*BUSINESS_COLUMNS))` window duplicate detection, the simpler numeric amount policy (`AMOUNT_PATTERN = r"^-?[0-9]+(\.[0-9]{1,2})?$"` + `try_cast(amt AS DECIMAL(18, 2))`, merging `unparseable_or_out_of_range_amount` and `amount_precision_changed` into `invalid_amount`), and a 19-row in-notebook self-test covering all required fields, multiple errors on a single row, and conflicting duplicates with an invalid occurrence.
-  - Refactored `pipelines/03_historical_features.ipynb` (`9` cells) to compute features via a left self-join (`prev_event_time < event_time` and `>= event_time - INTERVAL ...`) and conditional `F.count(F.when(...))`, run an in-notebook self-test, and persist `workspace.sentinel_gold.transaction_features`.
-  - Refactored `pipelines/04_monitoring_rules.ipynb` (`13` cells) to read `workspace.sentinel_gold.transaction_features`, use `F.array_compact`, struct field projection (`rule_evidence.rule_id`), and `F.format_string`, run an in-notebook threshold self-test (below/at/above each rule), accurately document `alert_id` hash identification vs. `overwrite` + uniqueness checks, and preserve the Jan 15–28 summary cell.
-  - Added `tests/00_refactor_equivalence_check.ipynb` (`3` cells) to verify two-way `exceptAll == 0` equivalence against `*_legacy` snapshots across `workspace.sentinel_silver.transactions` (all columns), `workspace.sentinel_silver.quarantine` (all non-reason columns, plus side-by-side `validation_reasons` display), and `workspace.sentinel_gold.alerts` (all columns).
-  - Preserved `pipelines/historical_features.py`, `tests/02_silver_transactions_tests.ipynb`, and `tests/04_monitoring_rules_tests.ipynb` until Databricks validation passes.
-- **Pending Databricks Execution**:
-  - Creating `*_legacy` snapshot tables in Databricks SQL, executing `02_silver_transactions.ipynb → 03_historical_features.ipynb → 04_monitoring_rules.ipynb`, running `tests/00_refactor_equivalence_check.ipynb` and `pipelines/05_rule_evaluation.ipynb`, and updating the existing Lakeflow Job to `01_bronze_transactions → 02_silver_transactions → 03_historical_features → 04_monitoring_rules` are **pending**.
+### Associate-Level PySpark Refactor & 4-Task Databricks Lakeflow Job (Verified in Databricks)
+- **Executed and Confirmed in Databricks**:
+  - Refactored `pipelines/02_silver_transactions.ipynb`, `pipelines/03_historical_features.ipynb` (persisting `workspace.sentinel_gold.transaction_features`), and `pipelines/04_monitoring_rules.ipynb` to Associate-level PySpark per `.ace/standards/pyspark-associate-level.md` and `docs/REFACTOR_GUIDE.md`.
+  - Passed two-way `exceptAll == 0` equivalence verification in `tests/00_refactor_equivalence_check.ipynb` across `workspace.sentinel_silver.transactions`, `workspace.sentinel_silver.quarantine` (all non-reason columns), and `workspace.sentinel_gold.alerts`.
+  - Updated and executed the **four-task Databricks Lakeflow Job** (`01_bronze_transactions → 02_silver_transactions → 03_historical_features → 04_monitoring_rules`), which **succeeded** end-to-end.
 
 ## Phase 3 Status (Investigation UI & API)
 
 ### Step 3A — Read-Only Alert & History Backend Endpoints (`app/backend/sql.js`, `app/backend/server.js`)
-- **Implemented & Verified Locally**:
-  - Added reusable parameterized `executeSqlStatement` (`DBSQLClient` + `DBSQLParameter`) in `app/backend/sql.js` keeping OAuth credentials strictly server-side.
-  - Added `GET /api/alerts` (reads `workspace.sentinel_gold.alerts` with validated `ruleId` / `MULTI_RULE`, `startDate`, `endDate`, `search`, and `limit` capped at `200`, default `50`).
-  - Added `GET /api/alerts/:alertId/history` (validates 64-hex `alertId`, reads the alert from `workspace.sentinel_gold.alerts`, and queries `workspace.sentinel_silver.transactions` for the same `cc_num` with strictly earlier `event_time < CAST(:alertEventTime AS TIMESTAMP_NTZ)`, `limit` capped at `100`, default `25`).
+- **Executed and Confirmed in Live Databricks SQL**:
+  - Parameterized `executeSqlStatement` (`DBSQLClient` + `DBSQLParameter`) in `app/backend/sql.js` keeping OAuth credentials strictly server-side.
+  - `GET /api/alerts` (reads `workspace.sentinel_gold.alerts` with validated `ruleId` / `MULTI_RULE`, `startDate`, `endDate`, `search`, and `limit` capped at `200`, default `50`).
+  - `GET /api/alerts/:alertId/history` (validates 64-hex `alertId`, reads the alert from `workspace.sentinel_gold.alerts`, and queries `workspace.sentinel_silver.transactions` for the same `cc_num` with strictly earlier `event_time < CAST(:alertEventTime AS TIMESTAMP_NTZ)`, `limit` capped at `100`, default `25`).
   - Preserved exact decimal strings (`CAST(CAST(... AS DECIMAL(18, 2)) AS STRING)`) and timezone-unspecified timestamp strings (`DATE_FORMAT(event_time, 'yyyy-MM-dd HH:mm:ss')`) in SQL projections and JSON serialization; excluded fraud labels completely.
-  - Added safe client error responses (`400` for invalid parameters, `404` for unknown alert IDs, `503` for missing config or SQL execution failure) while logging diagnostic details server-side.
-  - **Local Checks Passed**: `node --check` syntax validation on `app/backend/sql.js` and `app/backend/server.js`, plus unit assertions covering filter validation, limit capping, invalid-input `400` errors, decimal/timestamp string preservation, and `event_time < alert.event_time` SQL generation.
-- **Pending Live Databricks Connection**:
-  - Executing `GET /api/alerts` and `GET /api/alerts/:alertId/history` against the live Databricks SQL Warehouse (`workspace.sentinel_gold.alerts` and `workspace.sentinel_silver.transactions`) requires deploying or running with live Databricks OAuth credentials and `SELECT` privileges on both tables.
+  - Confirmed live backend execution against Databricks SQL (`workspace.sentinel_gold.alerts` and `workspace.sentinel_silver.transactions`).
+
+### Steps 3B–3D — Read-Only React + TypeScript Investigation UI (`app/frontend/src/`) — Completed and Verified
+- **Implemented & Verified (`npm run lint`, `npm run build`, and Live Browser Checks Passed)**:
+  - **Visual & Layout Adaptation (`app/frontend/src/index.css`, `app/frontend/src/App.css`, `app/frontend/src/App.tsx`)**:
+    - Adapted the Sentinel Payment Intelligence template: deep navy sidebar (`#0d1526`), pale cool gray background (`#f8fafc`), crisp white panels (`#ffffff`), thin 1px borders (`#e2e8f0`), blue accents (`#2563eb`), and clean typography without any non-functional navigation items (`Overview`, `My Cases`), priorities, workflow statuses, AI copilot, analyst notes, or `UTC` timestamp labels.
+    - Functional sidebar rule-filter views (`Alert queue (all)`, `Payment velocity (1h)`, `Unusual amount (14d)`, `Similar payments (1h)`, `Multi-rule (2+)`) and top summary cards explicitly describing **loaded results** bounded by the API result limit.
+  - **API Contracts & Formatters** (`app/frontend/src/types/alerts.ts`, `app/frontend/src/utils/formatters.ts`):
+    - Typed contracts for `GoldAlert`, `RuleEvidence`, `CardHistoryTransaction`, `AlertQueryFilters`, `AppliedAlertFilters`, `AlertsListResponse`, and `AlertHistoryResponse` (no `is_fraud` field).
+    - `maskCardNumber` (`•••• 1234`), `formatCurrency` (`$180.50`), `formatRuleTitle`, `formatRuleBadge`, `formatObservedMetricsList`, and `describeRuleEvidencePlainly`.
+  - **Review Queue Panel & Filters** (`app/frontend/src/components/AlertFiltersBar.tsx`, `app/frontend/src/components/AlertQueuePane.tsx`):
+    - Integrated search, rule filter, start/end date inputs, replay window shortcut pills, result limit (`25`, `50`, `100`, `200`), `Apply`, and `Reset`.
+    - Selectable review queue table (`Event time`, `Merchant`, `Masked card`, `Amount`, `Matched rules`) with keyboard navigation, active blue row indicator, loading/error/empty states, and explicit loaded-result count badge.
+  - **Selected Investigation Panel** (`app/frontend/src/components/AlertDetailPane.tsx`):
+    - Displays 4-column key payment facts (`Payment amount`, `Card reference`, `Merchant`, `Event time` without `UTC` labeling), warm amber left-bordered plain-language rule evidence callouts with metric pills, horizontal SVG amount comparison graphic (`Transaction amount`, `14-day average`, `Rule threshold (3× 14d average)`), 4-card earlier activity snapshot, strictly earlier card history table (`event_time < alert.event_time`) clearly labeled as limited results, and an expandable `<details>` section for technical IDs, rule specifications, and Unity Catalog source lineage.
+  - **Local Build Verification Passed**:
+    - `npm run lint` (`eslint .`): `0` errors, `0` warnings.
+    - `npm run build` (`tsc -b && vite build`): `0` errors; production bundle built in `app/frontend/dist/`.
+  - **Confirmed Live Browser Verification**:
+    - Alert selection updates transaction details, the amount comparison chart, and earlier card history.
+    - Payment velocity (`RULE_01_CARD_VELOCITY_1H`) filtering works as expected.
+    - No-match search clears both the review queue and the selected investigation details.
+    - `Reset` restores the alerts queue and default selection.
+
+### Step 3E — On-Demand AI Evidence Summaries (`app/backend/ai.js`, `app/backend/server.js`, `app/frontend/src/`) — Tested in Live Databricks App
+- **Implemented & Confirmed in Live Testing**:
+  - Reused the existing Databricks OAuth + AI Gateway chat completion connection in `app/backend/ai.js` (`fetchDatabricksWorkspaceAuth`, `requestAiChatCompletion`, `maskCardIdentifier`, `buildAlertEvidencePayload`, `generateAlertEvidenceSummary`).
+  - Added `POST /api/alerts/:alertId/summary` in `app/backend/server.js`, which retrieves the selected alert and up to `10` strictly earlier card transactions (`event_time < alert.event_time`) on the server via `fetchAlertHistory`, masks card identifiers, excludes fraud labels, treats merchant/source text strictly as data rather than instructions, and requests a short explanation covering why the transaction was flagged, supporting facts/thresholds, and missing context/limitations.
+  - Added the `Generate evidence summary` button and safe Markdown summary box (`SafeMarkdownText.tsx`) in `app/frontend/src/components/AlertDetailPane.tsx` and `app/frontend/src/App.tsx` with loading, error, and `AI-generated · Review against evidence` labels, clearing state and aborting any in-flight request when alert selection changes.
+  - **Live Databricks App Verification**: Live evidence summary generation tested and passed.
+
+### Step 3F — Ask Genie Panel (`app/app.yaml`, `app/backend/genie.js`, `app/backend/server.js`, `app/frontend/src/components/AskGeniePanel.tsx`) — Initial Questions Tested Live; Follow-Ups Unconfirmed
+- **Implemented & Tested for Initial Questions**:
+  - Configured `SENTINEL_GENIE_SPACE_ID` via `valueFrom: sentinel-genie` in `app/app.yaml` (never hardcoded).
+  - Reused `fetchDatabricksWorkspaceAuth` in `app/backend/genie.js` and implemented `askSentinelGenie` + `POST /api/genie/ask` (`app/backend/server.js`): starts a Genie conversation (`/api/2.0/genie/spaces/{spaceId}/start-conversation`) or sends a follow-up message (`/conversations/{conversationId}/messages`), polls message status with a bounded timeout (`60s`), and retrieves the answer, generated SQL, and available attachment query results (capped at `20` displayed rows) without executing generated SQL separately.
+  - Added `app/frontend/src/components/AskGeniePanel.tsx` (separate from the selected-alert summary) with question input, `Ask` / `Ask follow-up` button, `New conversation` reset, loading/error states, `AI-generated · Review against evidence` label, safe basic Markdown answer (`SafeMarkdownText.tsx`), and collapsible `View supporting data` containing generated SQL and capped query results.
+  - **Live Databricks App Verification**: Initial Genie questions tested and confirmed; follow-up questions in an active conversation remain unconfirmed.
+
+### Step 3G — Analyst Review Persistence (`workspace.sentinel_gold.alert_reviews`, `app/backend/sql.js`, `app/backend/server.js`, `app/frontend/src/`) — Tested in Live Databricks App
+- **Implemented & Confirmed in Live Testing**:
+  - **Backend (`app/backend/sql.js`, `app/backend/server.js`)**:
+    - Joined `workspace.sentinel_gold.alerts` with a deduplicated subquery on `workspace.sentinel_gold.alert_reviews` (`QUALIFY ROW_NUMBER() OVER (PARTITION BY LOWER(alert_id) ORDER BY updated_at DESC) = 1`) in `fetchGoldAlerts` and `fetchAlertHistory` so alert/history reads always remain at one row per transaction and default unsaved alerts to `review_status = 'Needs review'`, `review_notes = ''`, and `review_updated_at = null`.
+    - Added `parseAlertReviewInput` and `saveAlertReview` (`PUT /api/alerts/:alertId/review`), validating 64-hex `alertId`, `reviewStatus` (`'Needs review'`, `'In review'`, `'Closed'`), and `reviewNotes` (maximum `2,000` characters), verifying that the alert exists in `workspace.sentinel_gold.alerts` (`404` if missing), executing a parameterized `MERGE INTO workspace.sentinel_gold.alert_reviews`, and returning the saved review record.
+  - **Frontend (`app/frontend/src/`)**:
+    - Added the `Review status` badge column in the selectable Review queue table (`AlertQueuePane.tsx`) using shared `getReviewStatusBadgeClass` in `app/frontend/src/utils/formatters.ts`.
+    - Extracted the **Analyst decision** form into `app/frontend/src/components/AnalystReviewForm.tsx` (rendered by `AlertDetailPane.tsx`) with `Review status` select (`Needs review`, `In review`, `Closed`), `Investigation notes` textarea (`2,000` character counter), `Save review` button, last-saved timestamp badge, `Unsaved changes` indicator, save-success message, and error state.
+    - Scoped draft edits and save requests (`AbortController`) to the selected `alert_id` in `App.tsx` so switching alerts cannot display or overwrite another alert's review, and added unsaved-edit confirmation (`window.confirm` + `beforeunload`) before discarding unsaved changes.
+  - **Live Databricks App Verification**: Review save/update, browser refresh persistence, and alert isolation passed in live testing. Review survival after rerunning the pipeline job remains unconfirmed.
+
+### Power BI Consumer (SQL Warehouse)
+- **Status**:
+  - Imports `workspace.sentinel_silver.transactions`, `workspace.sentinel_gold.alerts`, and `workspace.sentinel_gold.alert_reviews` via the Databricks SQL Warehouse.
+  - KPI totals were verified.
+  - Shared-date filtering across the imported tables remains unconfirmed.
+
+### Remaining Unconfirmed Checks
+- Genie follow-up questions (`POST /api/genie/ask` with an active `conversationId`).
+- Saved review survival in `workspace.sentinel_gold.alert_reviews` after rerunning the 4-task Lakeflow Job.
+- Power BI shared-date filtering across imported tables.
+- Browser regression check after extracting `AnalystReviewForm.tsx` and consolidating `getReviewStatusBadgeClass` in `formatters.ts`.
 
 ## Established Decisions
 
@@ -152,8 +203,8 @@ The assessment filename above reflects the existing repository spelling.
 
 ## Next Steps
 
-1. Snapshot `transactions_legacy`, `quarantine_legacy`, and `alerts_legacy` in Databricks SQL, execute `02_silver_transactions.ipynb → 03_historical_features.ipynb → 04_monitoring_rules.ipynb`, run `tests/00_refactor_equivalence_check.ipynb` and `pipelines/05_rule_evaluation.ipynb`, and then add `03_historical_features` to the existing Lakeflow Job (`01 → 02 → 03 → 04`).
-2. After Databricks pipeline verification passes, resume Phase 3 UI work (`docs/planning/IMPLEMENTATION_PLAN-phase-3-ui.md` Steps 3B & 3C).
+1. Run browser regression checks for the `AnalystReviewForm` extraction and `getReviewStatusBadgeClass` consolidation.
+2. Verify Genie follow-up questions, saved review survival after a pipeline rerun, and Power BI shared-date filtering when ready.
 
 ## Verification Limitations
 
